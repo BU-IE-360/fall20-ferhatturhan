@@ -1,4 +1,4 @@
-# Progress Journal
+# Ferhat Turhan Progress Journal
 
 ## Homework 0 (29.10.2020)
 
