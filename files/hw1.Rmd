@@ -1,0 +1,236 @@
+---
+title: "Data Visualization and Google Trends on Three Different Measures from Turkey"
+author: "Ferhat Turhan"
+date: "20/11/2020"
+output: html_document
+---
+In this homework, three different measures of interest are examined.
+
+# 1-Retail Trade Volume
+
+This data set provides the information of retail trade volume of Turkey monthly between years 2010 and 2020, indexed to the base year 2015. Below you can find the overall plot of the data set.
+
+```{r Library and Plot1, echo=FALSE, message=FALSE, warning=FALSE}
+library(lubridate)
+perakende <- read.csv("C:/Users/user/Desktop/perakende.csv", sep = ";")
+
+perakende$ï..Date <- as.Date(parse_date_time(perakende$ï..Date,"Ym"),
+                             format = "%Y-%m-%d")
+
+plot(perakende[,1],perakende[,2],type = "l",
+     xlab = "Time",
+     ylab = "Index",main = "Retail Trade Volume of Turkey",col="brown4")
+```
+
+From the plot above, it can be observed that general trend is increasing in spite of some oscillations, which are probably due to some periodic recurring factors.
+
+Below you can find the histograms of the data set year by year.
+
+```{r Histograms1, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,3))
+hist(perakende$Retail_Sales_Index[1:12], col = "cyan", xlab = "Retail Trade Volume", main = "2010")
+hist(perakende$Retail_Sales_Index[13:24], col = "cyan4", xlab = "Retail Trade Volume", main = "2011")
+hist(perakende$Retail_Sales_Index[25:36], col = "aquamarine3", xlab = "Retail Trade Volume", main = "2012")
+hist(perakende$Retail_Sales_Index[36:48], col = "blue", xlab = "Retail Trade Volume", main = "2013")
+hist(perakende$Retail_Sales_Index[49:60], col = "bisque1", xlab = "Retail Trade Volume", main = "2014")
+hist(perakende$Retail_Sales_Index[61:72], col = "cornsilk3", xlab = "Retail Trade Volume", main = "2015")
+hist(perakende$Retail_Sales_Index[73:84], col = "antiquewhite", xlab = "Retail Trade Volume", main = "2016")
+hist(perakende$Retail_Sales_Index[85:96], col = "antiquewhite3", xlab = "Retail Trade Volume", main = "2017")
+hist(perakende$Retail_Sales_Index[97:108], col = "brown1", xlab = "Retail Trade Volume", main = "2018")
+hist(perakende$Retail_Sales_Index[109:120], col = "chocolate3", xlab = "Retail Trade Volume", main = "2019")
+hist(perakende$Retail_Sales_Index[121:129], col = "chocolate1", xlab = "Retail Trade Volume", main = "2020")
+
+```
+
+In order to observe better, you can see the year by year box plots of the data set below.
+
+```{r Boxplots1, echo=FALSE, message=FALSE, warning=FALSE}
+boxplot(perakende$Retail_Sales_Index[1:12],
+        perakende$Retail_Sales_Index[13:24],
+        perakende$Retail_Sales_Index[25:36],
+        perakende$Retail_Sales_Index[36:48],
+        perakende$Retail_Sales_Index[49:60],
+        perakende$Retail_Sales_Index[61:72],
+        perakende$Retail_Sales_Index[73:84],
+        perakende$Retail_Sales_Index[85:96],
+        perakende$Retail_Sales_Index[97:108],
+        perakende$Retail_Sales_Index[109:120],
+        perakende$Retail_Sales_Index[121:129],
+        names = c("2010", "2011", "2012", "2013", "2014","2015","2016","2017","2018","2019","2020"),col = c("cyan","cyan4","aquamarine3", "blue","bisque1","cornsilk3","antiquewhite","antiquewhite3","brown1","chocolate3","chocolate1"))
+```
+
+Now we can see the yearly increase of Retail Trade Volume more clear. Retail Volume Trade is nearly doubled in 2020 compared to the base year 2015. However, there is also the factor of depreciation of the value of Turkish Lira. Therefore, this doubled quantity doesn't mean that the actual volume is doubled.
+
+Using Google Trends, I tried to see if the number of the keyword "İndirim" searched on Google is related to Retail Trade Volume. Below you can see the box plots of the data set provided from Google Trends.
+
+```{r Google Trends1, echo=FALSE, message=FALSE, warning=FALSE}
+indirim <- read.csv("C:/Users/user/Desktop/indirim.csv")
+boxplot(indirim$indirim[1:12],
+        indirim$indirim[13:24],
+        indirim$indirim[25:36],
+        indirim$indirim[36:48],
+        indirim$indirim[49:60],
+        indirim$indirim[61:72],
+        indirim$indirim[73:84],
+        indirim$indirim[85:96],
+        indirim$indirim[97:108],
+        indirim$indirim[109:120],
+        indirim$indirim[121:129],
+        names = c("2010", "2011", "2012", "2013", "2014","2015","2016","2017","2018","2019","2020"),col = c("cyan","cyan4","aquamarine3", "blue","bisque1","cornsilk3","antiquewhite","antiquewhite3","brown1","chocolate3","chocolate1"))
+```
+
+We can now understand that even if it's not perfect, it looks like there is relation between the search of keyword "İndirim" and Retail Trade Volume.
+
+# 2-Number of computers, peripheral units and software, books, telecommunications equipment, etc. sold
+
+This data set provides the information of the number of computers, peripheral units and software, books, telecommunications equipment, etc. sold in Turkey monthly between years 2010 and 2020, indexed to the base year 2015. Below you can find the overall plot of the data set.
+
+```{r Plot2, echo=FALSE, message=FALSE, warning=FALSE}
+computer <- read.csv("C:/Users/user/Desktop/computer.csv", sep = ";")
+computer$ï..Date <- as.Date(parse_date_time(computer$ï..Date,"Ym"),
+                             format = "%Y-%m-%d")
+
+plot(computer[,1],computer[,2],type = "l",
+     xlab = "Time",
+     ylab = "Index",main = "Technological Equipment Sold",col="brown4")
+
+```
+
+From the plot above, it can be observed that general trend is increasing in spite of some oscillations, which are probably due to some periodic recurring factors. We can see that generally in April, index drops down dramatically and generally in September-October there is a huge increase. This drops and jumps are probably due to opening and closing times of schools.
+
+Below you can find the histograms of the data set year by year.
+
+```{r Histograms2, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,3))
+hist(computer$Computer[1:12], col = "cyan", xlab = "Technological Equipment Sold", main = "2010")
+hist(computer$Computer[13:24], col = "cyan4", xlab = "Technological Equipment Sold", main = "2011")
+hist(computer$Computer[25:36], col = "aquamarine3", xlab = "Technological Equipment Sold", main = "2012")
+hist(computer$Computer[36:48], col = "blue", xlab = "Technological Equipment Sold", main = "2013")
+hist(computer$Computer[49:60], col = "bisque1", xlab = "Technological Equipment Sold", main = "2014")
+hist(computer$Computer[61:72], col = "cornsilk3", xlab = "Technological Equipment Sold", main = "2015")
+hist(computer$Computer[73:84], col = "antiquewhite", xlab = "Technological Equipment Sold", main = "2016")
+hist(computer$Computer[85:96], col = "antiquewhite3", xlab = "Technological Equipment Sold", main = "2017")
+hist(computer$Computer[97:108], col = "brown1", xlab = "Technological Equipment Sold", main = "2018")
+hist(computer$Computer[109:120], col = "chocolate3", xlab = "Technological Equipment Sold", main = "2019")
+hist(computer$Computer[121:129], col = "chocolate1", xlab = "Technological Equipment Sold", main = "2020")
+
+```
+
+In order to observe better, you can see the year by year box plots of the data set below.
+
+```{r Boxplots2, echo=FALSE, message=FALSE, warning=FALSE}
+boxplot(computer$Computer[1:12],
+        computer$Computer[13:24],
+        computer$Computer[25:36],
+        computer$Computer[36:48],
+        computer$Computer[49:60],
+        computer$Computer[61:72],
+        computer$Computer[73:84],
+        computer$Computer[85:96],
+        computer$Computer[97:108],
+        computer$Computer[109:120],
+        computer$Computer[121:129],
+        names = c("2010", "2011", "2012", "2013", "2014","2015","2016","2017","2018","2019","2020"),col = c("cyan","cyan4","aquamarine3", "blue","bisque1","cornsilk3","antiquewhite","antiquewhite3","brown1","chocolate3","chocolate1"))
+
+```
+
+Now we can see the yearly increase of the number of computers, peripheral units and software, books, telecommunications equipment, etc. sold more clear. Number of computers, peripheral units and software, books, telecommunications equipment, etc. sold is nearly doubled in 2020 compared to the base year 2015. This may be because of the digitalization of the world and the increase in the need of computers and new technology.
+
+Using Google Trends, I tried to see if the number of the keyword "dijitalleşme" searched on Google is related to the number of computers, peripheral units and software, books, telecommunications equipment, etc. sold in Turkey. Below you can see the box plots of the data set provided from Google Trends.
+
+```{r Google Trends2, echo=FALSE, message=FALSE, warning=FALSE}
+digitalization <- read.csv("C:/Users/user/Desktop/digitalization.csv")
+boxplot(digitalization$digitalization[1:12],
+        digitalization$digitalization[13:24],
+        digitalization$digitalization[25:36],
+        digitalization$digitalization[36:48],
+        digitalization$digitalization[49:60],
+        digitalization$digitalization[61:72],
+        digitalization$digitalization[73:84],
+        digitalization$digitalization[85:96],
+        digitalization$digitalization[97:108],
+        digitalization$digitalization[109:120],
+        digitalization$digitalization[121:129],
+        names = c("2010", "2011", "2012", "2013", "2014","2015","2016","2017","2018","2019","2020"),col = c("cyan","cyan4","aquamarine3", "blue","bisque1","cornsilk3","antiquewhite","antiquewhite3","brown1","chocolate3","chocolate1"))
+```
+
+When we compare the boxplots of our data driven from Google Trends, there is a similarity between the keyword "dijitalleşme" and the number of computers, peripheral units and software, books, telecommunications equipment, etc. sold in Turkey, especially in last years.
+
+# 3- Number of pharmaceutical goods, medical and orthopedic goods, cosmetic and toilet articles
+
+This data set provides the information of the number of pharmaceutical goods, medical and orthopedic goods, cosmetic and toilet articles sold in Turkey monthly between years 2010 and 2020, indexed to the base year 2015. Below you can find the overall plot of the data set.
+
+```{r Plot3, echo=FALSE, message=FALSE, warning=FALSE}
+pharmacy <- read.csv("C:/Users/user/Desktop/pharmacy.csv", sep = ";")
+pharmacy$ï..Date <- as.Date(parse_date_time(pharmacy$ï..Date,"Ym"),
+                             format = "%Y-%m-%d")
+
+plot(pharmacy[,1],pharmacy[,2],type = "l",
+     xlab = "Time",
+     ylab = "Index",main = "Medical Equipment Sold",col="brown4")
+```
+
+From the plot above, it can be observed that general trend is increasing in spite of some oscillations, which are probably due to some periodic recurring factors. Especially after the second half of 2019 and 2020, there seems a huge increase. We can also see that there is an observable decrease in May 2020. This drops and jumps are probably due to Covid-19 Pandemic.
+
+Below you can find the histograms of the data set year by year.
+
+```{r Histograms3, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,3))
+hist(pharmacy$pharmacy[1:12], col = "cyan", xlab = "Medical Equipment Sold", main = "2010")
+hist(pharmacy$pharmacy[13:24], col = "cyan4", xlab = "Medical Equipment Sold", main = "2011")
+hist(pharmacy$pharmacy[25:36], col = "aquamarine3", xlab = "Medical Equipment Sold", main = "2012")
+hist(pharmacy$pharmacy[36:48], col = "blue", xlab = "Medical Equipment Sold", main = "2013")
+hist(pharmacy$pharmacy[49:60], col = "bisque1", xlab = "Medical Equipment Sold", main = "2014")
+hist(pharmacy$pharmacy[61:72], col = "cornsilk3", xlab = "Medical Equipment Sold", main = "2015")
+hist(pharmacy$pharmacy[73:84], col = "antiquewhite", xlab = "Medical Equipment Sold", main = "2016")
+hist(pharmacy$pharmacy[85:96], col = "antiquewhite3", xlab = "Medical Equipment Sold", main = "2017")
+hist(pharmacy$pharmacy[97:108], col = "brown1", xlab = "Medical Equipment Sold", main = "2018")
+hist(pharmacy$pharmacy[109:120], col = "chocolate3", xlab = "Medical Equipment Sold", main = "2019")
+hist(pharmacy$pharmacy[121:129], col = "chocolate1", xlab = "Medical Equipment Sold", main = "2020")
+```
+
+In order to have a better observation, you can see the year by year box plots of the data set below.
+
+```{r Boxplots3, echo=FALSE, message=FALSE, warning=FALSE}
+boxplot(pharmacy$pharmacy[1:12],
+        pharmacy$pharmacy[13:24],
+        pharmacy$pharmacy[25:36],
+        pharmacy$pharmacy[36:48],
+        pharmacy$pharmacy[49:60],
+        pharmacy$pharmacy[61:72],
+        pharmacy$pharmacy[73:84],
+        pharmacy$pharmacy[85:96],
+        pharmacy$pharmacy[97:108],
+        pharmacy$pharmacy[109:120],
+        pharmacy$pharmacy[121:129],
+        names = c("2010", "2011", "2012", "2013", "2014","2015","2016","2017","2018","2019","2020"),col = c("cyan","cyan4","aquamarine3", "blue","bisque1","cornsilk3","antiquewhite","antiquewhite3","brown1","chocolate3","chocolate1"))
+```
+
+Now we can see the yearly increase of the number of pharmaceutical goods, medical and orthopedic goods, cosmetic and toilet articles sold in Turkey more clear. The number of pharmaceutical goods, medical and orthopedic goods, cosmetic and toilet articles sold is nearly doubled in 2020 compared to the base year 2015. This may be because of the Covid-19 Pandemic. We know that after the pandemic, most people realized the importance of hygiene, and to be able to protect themselves, people started to wear medical masks.
+
+Using Google Trends, I tried to see if the number of the keyword "sağlık" searched on Google is related to the number of pharmaceutical goods, medical and orthopedic goods, cosmetic and toilet articles sold in Turkey. Below you can see the box plots of the data set provided from Google Trends.
+
+```{r Google Trends3, echo=FALSE, message=FALSE, warning=FALSE}
+saglik <- read.csv("C:/Users/user/Desktop/saglık.csv")
+boxplot(saglik$saglık[1:12],
+        saglik$saglık[13:24],
+        saglik$saglık[25:36],
+        saglik$saglık[36:48],
+        saglik$saglık[49:60],
+        saglik$saglık[61:72],
+        saglik$saglık[73:84],
+        saglik$saglık[85:96],
+        saglik$saglık[97:108],
+        saglik$saglık[109:120],
+        saglik$saglık[121:129],
+        names = c("2010", "2011", "2012", "2013", "2014","2015","2016","2017","2018","2019","2020"),col = c("cyan","cyan4","aquamarine3", "blue","bisque1","cornsilk3","antiquewhite","antiquewhite3","brown1","chocolate3","chocolate1"))
+```
+
+Now we can compare the box plots. Obviously the number of pharmaceutical goods, medical and orthopedic goods, cosmetic and toilet articles sold in Turkey is not related much to the number of the keyword "sağlık" searched on Google.
+
+# References
+[TUIK](https://data.tuik.gov.tr/Kategori/GetKategori?p=Ticaret-ve-Hizmet-115)
+[Google Trends](https://trends.google.com/trends/?geo=US)
+
+You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/hw1.Rmd)
+
