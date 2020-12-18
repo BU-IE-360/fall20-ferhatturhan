@@ -1,0 +1,171 @@
+---
+title: "Homework 2"
+author: "Ferhat Turhan"
+date: "18/12/2020"
+output: html_document
+---
+
+# Introduction
+
+Recently I realized that there are many house buyers in Turkey. I know that citizens of Turkey have been losing their purchase power dramatically for recent years. To validate my point here, I checked if the credits given for house purchase is also decreased.
+
+If Turkish people are having economic issues, who buys those new houses? With a little research, I found that those buyers are not Turkish at all. This information didn't surprise me at the first place, since I knew that Turkish people couldn't even afford their daily expenses; therefore they also cannot afford those highly expensive houses. However, I wonder why foreign people started to buy more houses from Turkey in recent years. Perhaps they plan to invest in Turkey, and to have more comfortable places to live when they come to vacations. Whatever the reason is, data related to this concept tels that there is an overall increasing trend.
+
+Turkey deals with some economic problems in recent years. Due to some both internal and external factors, Turkish Economy started to collapse. Consumer Price Index went up, so the purchasing power of a Turkish citizen dropped dramatically and Turkish Lira lost a significant value against other foreign currency. I think the drop of the value of Turkish Lira in recent years may have triggered the foreigners to spend money in Turkey. Since the exchange rates of both USD and EUR are increased significantly, a purchasing power of foreigner also rised. Therefore this might be relatable to the increase in the number of houses sold to foreign people. In this study I used USD/TRY exchange rates, because intuitively I thought that it might be the most used one.
+
+My aim in this homework is to find out if there is a statistical proof of my assumptions. My research question is that **Is there any correlation between _housing credits_, _number of houses sold to foreign people_, and _USD/TRY exchange rates?_**
+
+# Data Manipulation and Visualization of Data
+
+In order to find the correct answer, I need to first collect the correct data. I obtained relevant data from [the Central Bank of the Republic of Turkey’s Electronic Data Delivery System](https://evds2.tcmb.gov.tr). The data is monthly from January 2013 to October 2020 and the housing credits given to Turkish citizens is in TL. Before doing the correlation tests immediately, I want to visualize my data in order the viewer to understand better. First I need to do some manipulations.
+
+```{r Obtaining and Manipulation, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(lubridate)
+library(readxl)
+
+data <- read_excel("C:/Users/user/Desktop/data.xlsx")
+colnames(data) <- c("date", "houses sold 
+to foreigners", "USD/TRY", "housing
+credits")
+data$date <- as.Date(parse_date_time(data$date,"Ym"), format = "%Y-%m-%d")
+ts_data <- ts(data=data[-1], frequency = 12, start=c(2013,1))
+
+plot(x = ts_data,ylab = "Rate (TRY/%)", main = "Change of the Data with Respect to Time", col = c("darkblue"))
+colnames(data) <- c("date", "houses_sold_to_foreigners", "exchange_rate", "housing_credits")
+
+```
+
+In the code chunk above, there are small manipulations of the data. First I changed the column names for better readability and for better usage below. I created a time series object from the row data, since my data is affected by time. After creating this time series object, I plotted my three different columns. When I look at the graph above, I can easily say that there is a similar trend between exchange rates and houses sold to foreign people. Even though there are some deviations (especially in the plot for houses sold to foreigners), both exchange rates and houses sold to foreign people are increased over time. I can say that there is a huge drop in the number of houses sold to foreign people at the beginning of 2020. I don't actually know why other deviations happened but this one is probably due to Covid-19 pandemic.
+
+The situation is not the same as others for housing credits given to Turkish citizens. The graph says that housing credits given to Turkish citizens have been decreased drastically over Time. I knew that our economy doesn't go well, but I didn't expect this kind of drop. Of course there must be other factors that affected this change over time, since the time range is very wide, which must be examined more intensive. However, in this homework I will not look for the reasons of this severe drops.
+
+Now I want to show year by year histograms of these three different data set.
+
+```{r Histograms1, message=FALSE, warning=FALSE}
+ggplot(data = data, aes(x = houses_sold_to_foreigners)) +
+  geom_histogram(color="darkblue", fill="lightblue") +
+  facet_wrap( nrow = 2, facets = ~year(date)) +
+  labs(title = "Year by Year Histograms of Houses Sold To Foreigners in Turkey", 
+       x = "Monthly Houses Sold to Foreigners",
+       y = "Frequency") 
+```
+
+When I looked at the year by year histograms above, I can say that from 2013 to 2017, the data looks like normally distributed. However, after 2018 variance of my data seems significant. Between 2013 and 2017, data shows that the number of houses sold to foreign people is consistent. It looks like that all months have similar numbers. I don't know what happened after 2018, but something changed the distribution of monthly number of houses sold. I think and my assumption in this homework is that this may be due to changes in exchange rates. There may be many other different situations that can affect this distribution. In this homework, I will not go into more detail in those deviations and differences between years but it is important that to analyze the data more accurate, one should investigate the reasons behind these.
+
+Now let's look at the histograms of exchange rate.
+
+```{r Histograms2, message=FALSE, warning=FALSE}
+ggplot(data = data, aes(x = exchange_rate)) +
+  geom_histogram(color="darkred", fill="palevioletred") +
+  facet_wrap( nrow = 2, facets = ~year(date)) +
+  labs(title = "Year by Year Histograms of USD/TRY Exchange Rates", 
+       x = "Monthly Average Exchange Rate",
+       y = "Frequency") 
+```
+
+When I looked at the histograms above, I can say that exchange rates are consistent between 2013-2017 just like the number of houses sold to foreigners (even more consistent). However there are fluctuations after 2018. Remember I said in the introduction part that Turkish economy collapses over time. So, those fluctuations are probably due to the drop in reliance to Turkish Economy. We can say that this decrease is obviously reflected in exchange rates' data. I want to show also this drop in Turkish Economic Welfare. If people don't buy new houses, it is probably due to the fact that they cannot afford it.
+
+Now let's look at the histograms of housing credits given to Turkish citizens.
+
+```{r Histograms3, message=FALSE, warning=FALSE}
+ggplot(data = data, aes(x = housing_credits)) +
+  geom_histogram(color="seagreen4", fill="seagreen1") +
+  facet_wrap( nrow = 2, facets = ~year(date)) +
+  labs(title = "Year by Year Histograms of Housing Credits", 
+       x = "Monthly Housing Credits Given to Turkish Citizens",
+       y = "Frequency")
+```
+As we can see from the histogram of monthly housing credits given to Turkish citizens, people don't take housing credits anymore. Especially after 2017, the decrease of housing credits given is vigorous. We can relate this change to the other data sets. This last data set has exactly the opposite trend to the ones above. I assume that there may be negative correlation between housing credits and exchange rate, and between housing credits and the number of houses sold to foreigners.
+
+Now I want to show box plots of the three data sets.
+
+```{r Boxplot, message=FALSE, warning=FALSE}
+ggplot(data = data, aes(x = date, y=  houses_sold_to_foreigners) ) +
+  geom_boxplot(aes(fill= factor(year(date)))) 
+ggplot(data = data, aes(x = date, y=  exchange_rate) ) +
+  geom_boxplot(aes(fill= factor(year(date))))
+ggplot(data = data, aes(x = date, y=  housing_credits) ) +
+  geom_boxplot(aes(fill= factor(year(date))))
+```
+
+After looking at the box plots of each data set, we can realize that there is an increasing trend in both houses sold to foreigners and exchange rates, even though the plot for the houses sold to foreigners has some deviations. This plots also supports the histograms above. We can see that the number houses sold to foreigners has some severe deviations compared other two. By looking especially in 2018 plots of both exchange rate and the number houses sold to foreigners, I can say that there must be something very significant to deviate this two data.
+
+After visualizing our data, let's analyze our core question. _Is there any correlation between housing credits, number of houses sold to foreign people, USD/TRY exchange rates?_
+
+# Correlation Analysis
+ 
+In this homework I used **Pearson r correlation**, since it is the most widely used correlation test. In this test, I will examine if my data sets are linearly correlated with each other. The coefficient of correlation takes values between -1 and +1. 0 means that there is no correlation at all. A positive value indicates a positive relationship, and a negative value means that the relationship is negative(when one of them increases the other decreases.
+
+In Pearson r correlation test null hypothesis tells that there is no correlation at all, and alternative hypothesis is that two data are correlated.
+
+Let's look at the correlation output of the three pairs of our data.
+
+```{r Correlation Test 1, echo=FALSE, message=FALSE, warning=FALSE}
+print("Correlation Test between the Number of Houses Sold to Foreign People and Exchange Rate")
+cor.test(x = data$houses_sold_to_foreigners, y = data$exchange_rate, method = "pearson", alternative = "two.sided")
+```
+
+I can say that there is a strong **positive** correlation between the number of houses Sold to foreign people and exchange rate. P- value is significantly small, so we reject the null hypothesis. The correlation coefficient is **+0.7576679**
+
+```{r Correlation Test 2, echo=FALSE, message=FALSE, warning=FALSE}
+print("Correlation Test between The Housing Credits Given to Turkish Citizens and Exchange Rate")
+cor.test(x = data$housing_credits, y = data$exchange_rate, method = "pearson", alternative = "two.sided")
+```
+
+I can say that there is a strong **negative** correlation between the housing credits given to Turkish citizens and exchange rate. P- value is significantly small, so we reJeCt the null hypothesis. The correlation coefficient is **-0.7002597**
+
+```{r Correlation Test 3, echo=FALSE, message=FALSE, warning=FALSE}
+print("Correlation Test between The Housing Credits Given to Turkish Citizens and The Number of Houses Sold to Foreign People")
+cor.test(x = data$housing_credits, y = data$houses_sold_to_foreigners, method = "pearson", alternative = "two.sided")
+```
+
+I can say that there is a strong **negative** correlation between the housing credits given to Turkish citizens and the number of houses Sold to foreign people. P- value is significantly small, so we reJeCt the null hypothesis. The correlation coefficient is **-0.5344424**
+
+These three test proves that my data is correlated with each other as I expected. Let's summarize the correlation test with a correlation matrix.
+
+```{r Correlation Matrix, echo=FALSE, message=FALSE, warning=FALSE}
+library(ggcorrplot)
+ggcorrplot(corr = cor(ts_data),
+           type = "upper",lab = TRUE,
+           title = "Correlation Matrix",
+           legend.title = "Correlation"
+          )
+
+```
+
+We can also see the correlation coefficients from this matrix. It is also nice that positive relations are shown in red and negative relations are shown in blue. The stronger the relation, the darker the color.
+
+Lastly I want to show point plots of these pairs.
+
+```{r Pairly Plots, echo=FALSE, message=FALSE, warning=FALSE}
+plot(x = data$housing_credits, y = data$exchange_rate,
+     main = "Housing Credits vs. USD/TRY Exchange Rate",
+     ylab = "USD/TRY Exchange Rate", xlab = "Housing Credits (TL)",
+     col="seagreen4")
+plot(x = data$housing_credits, y = data$houses_sold_to_foreigners,
+     main = "Housing Credits vs. Houses Sold to Foreign People",
+     xlab = "Housing Credits (TL)", ylab = "Number of Houses Sold to Foreign People",
+     col="darkblue")
+plot(x = data$exchange_rate, y = data$houses_sold_to_foreigners,
+     main = "USD/TRY Exchange Rate vs. Houses Sold to Foreign People",
+     xlab = "USD/TRY Exchange Rate", ylab = "Number of Houses Sold to Foreign People",
+     col = "darkred")
+```
+
+From the plots above we can see the negative and positive relations between the pairs. Even if it seems a little difficult with these plots, it is still a good visualizing tool.
+
+# Conclusion
+
+In this homework I tried to prove my assumption that **There must be a correlation between _housing credits_, _number of houses sold to foreign people_, and _USD/TRY exchange rates._** 
+
+First I obtained the relevant data from [EVDS](https://evds2.tcmb.gov.tr). After I downloaded the data, I tried to visualize it for better understanding. From the line plot, histograms, and box plots, I saw that the data was meeting with my expectations. Although, the data had many fluctuations, I ignored them for this homework. In the coming projects I hope that I will also examine those deviations. 
+
+After visualizing the data and therefore understanding the trends better, I used **Pearson r correlation test** to see that my data is actually correlated. Tests also approved my assumptions from the introduction part. Housing credits, number of houses sold to foreign people, and USD/TRY exchange rates are indeed correlated with each other. Even though we had some instincts after looking at the histograms and box plots, we couldn't be sure 100% that the data actually correlated. Therefore those scientific tests are very useful to prove our point. 
+
+# References
+
+[Colors in R](http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf)
+[the Central Bank of the Republic of Turkey’s Electronic Data Delivery System](https://evds2.tcmb.gov.tr)
+
+You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/hw2.Rmd)

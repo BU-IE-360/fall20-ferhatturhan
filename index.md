@@ -7,3 +7,7 @@
 ## Homework 1 (20.11.2020)
 
 [Here](files/ferhatturhan_homework_1.html) is some visualizations of 3 different data set.
+
+## Homework 2 (18.12.2020)
+
+[Here](files/ferhatturhan_homework_2.html) is some visualizations and correlation analysis of 3 different data set.
