@@ -1,0 +1,283 @@
+---
+title: "Homework 3"
+author: "Ferhat Turhan"
+date: "09/01/2021"
+output: html_document
+---
+
+# Introduction
+
+In this homework, I am going to analyze the data of the number of newly established firms. After analyzing this time series data, I am expected to forecast the value for December 2020. First I obtained the relevant data from [the Central Bank of the Republic of Turkey’s Electronic Data Delivery System](https://evds2.tcmb.gov.tr). Since I am going to forecast one month, I obtained the data monthly from January 2013 to November 2020. 
+
+# Data Manipulation and Visualization of Data
+
+Let's first read the data and created a time series object. Then I plotted it respect to time to have a general idea of the time series.
+
+```{r reading and manipulation, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(ggplot2)
+library(lubridate)
+library(readxl)
+library(fpp)
+library(data.table)
+library(naniar)
+
+data <- read_excel("C:/Users/user/Desktop/dataY.xlsx")
+data$date <- as.Date(parse_date_time(data$date,"Ym"), format = "%Y-%m-%d")
+ts_data <- ts(data=data[-1], frequency = 12, start=c(2010,1))
+plot(ts_data, ylab = "number of newly established firms")
+
+```
+
+With this plot I can see that the variance is not constant over time. Instead, it seems that variance is increasing. So I will take the natural logarithm of the data to avoid this increasing variance. And then I will create a data table for my regression model. Then first let's look at the auto correlation, if it exists.
+
+```{r taking logarithm, echo=FALSE, message=FALSE, warning=FALSE}
+
+ts_data_log <- log(ts_data)
+plot(ts_data_log, ylab = "number of newly established firms")
+
+numbers <- data.table(log_number=as.numeric(ts_data_log))
+
+acf(as.numeric(ts_data_log[is.na(ts_data_log)==F]) )
+
+```
+
+I can say that there is a strong auto correlation. Therefore, I will use an auto regressive model. I created a new column for the previous month's data. Let's look at the head of my data table now.
+
+```{r adding lag1, message=FALSE, warning=FALSE}
+
+lag1 <- c(0, numbers$log_number)
+numbers <- cbind(numbers,lag1=lag1[1:132])
+numbers <- numbers %>% replace_with_na(replace = list(lag1 = 0))
+head(numbers)
+
+```
+
+Now Let's look at my very first model below and look at the fitted and real values. In the model below I tried to find a linear relation between my original data and the previous month (auto regressive variable).
+
+By looking at the overall p-value, I can say that this model is significant. Adjusted R squared value is a bit low but the important thing here for now is the residual standard error, which must be as low as possible (Here it is 0.2112).
+
+When I plot my data and the fitted values, I can say that there looks like a seasonality. In the next chunk I will add monthly seasonality into model and see if this still exists.
+
+When we look at the plot of current model's residuals, they seem to have a mean value approximately 0, except for some outlier points. I will try to deal with those outlier points to have a better model. 
+
+```{r model 1, message=FALSE, warning=FALSE}
+
+fit <- lm(log_number~lag1, data = numbers)
+summary(fit)
+
+plot(numbers$log_number,type='l',col=2)
+points(fit$fitted)
+
+plot(fit$residual)
+
+```
+
+Below the code chunk, I added the monthly seasonality to see if there is a relation. In the first model below, I added only month into the model. With this model I cannot see the effect of month 1(January) because it is fitted inside of the intercept. So, in the second model I took out the intercept from the model. Taking out the intercept from the model may mislead the calculations of R squared values. Therefore from now on, I won't be looking at the R squared values as indicators of my model's success. Instead I will look at the **Residual Standard Error** values. It can be seen that residual standard error didn't change when I took out the intercept. That was what I expected, however I do this transition in my model to be able to see the monthly effect of all months more clear. 
+
+In the third model I added the lag1 to the model again, since I knew that it was significant for my model. I can say by looking at the p-values that both the over all model and the independent variables are significant in this model, meaning that there is a linear relation between the newly established firms and them.
+
+When I plot my data and the fitted values, I can say that there still looks like a trend. In the next chunk I will add a trend into model to improve the seasonality. 
+
+It can be seen that there are still some outliers even though my residuals are more likely to have mean of zero.  I will try to remove those outliers by adding independent variables.
+
+```{r adding month, message=FALSE, warning=FALSE}
+
+month=seq(1,12,by=1)
+numbers=cbind(numbers,month = month) 
+
+fit <- lm(log_number~as.factor(month), data = numbers)
+summary(fit)
+
+fit <- lm(log_number~-1+as.factor(month), data = numbers)
+summary(fit)
+
+fit <- lm(log_number~-1+as.factor(month)+lag1, data = numbers)
+summary(fit)
+
+plot(numbers$log_number,type='l',col=2)
+points(fit$fitted)
+
+plot(fit$residual)
+
+```
+
+Below the chunk code I added the trend into my data table. After this preliminary step, I added the trend into my regression model. By looking at the over all p-value of the model I am satisfied. After that I see that trend variable is also a significant part of the model, and I can say that my residual standard error value also dropped with the new trend variable. 
+
+In this last model, residuals also look fine. There are some outlier points and I will look at them if they can be omitted by adding new independent variables.
+
+```{r adding trend,  message=FALSE, warning=FALSE}
+
+numbers[,trend:=1:.N]
+
+fit <- lm(log_number~-1+as.factor(month)+lag1+trend, data = numbers)
+summary(fit)
+checkresiduals(fit)
+
+```
+
+# Adding New Variables
+
+From [the Central Bank of the Republic of Turkey’s Electronic Data Delivery System](https://evds2.tcmb.gov.tr) I obtained three different data sets that I thought they might be correlated with the newly established companies. The data sets are **General Economic Situation Expectations** over the next 12 months, **The Probability of Borrowing Money** over the next 3 months, and **Commercial Loans**. Since the data for General Economic Situation Expectations and The Probability of Borrowing Money are provided from January 2012, before that time there are empty cells in my data set. Below I can show you the head of the data.
+
+```{r adding new independent variables, echo=FALSE,  message=FALSE, warning=FALSE}
+
+xvar <- read_excel("C:/Users/user/Desktop/EVDS (7).xlsx")
+xvar$Date <- as.Date(parse_date_time(xvar$Date,"Ym"), format = "%Y-%m-%d")
+colnames(xvar) <- c("date","econ_expectation", "prob_borrowing", "commercial_loans")
+
+numbers <- cbind(numbers, econ_expectation = xvar$econ_expectation)
+numbers <- cbind(numbers, prob_borrowing = xvar$prob_borrowing)
+numbers <- cbind(numbers, commercial_loans = xvar$commercial_loans)
+head(numbers)
+
+```
+
+Let's look at the correlations between newly established companies and these three data set.
+
+```{r correlations, echo=FALSE, message=FALSE, warning=FALSE}
+
+print("Correlation Test between General Economic Situation Expectations and Newly Established Companies")
+cor.test(x = numbers$econ_expectation, y = numbers$log_number, method = "pearson", alternative = "two.sided")
+
+print("Correlation Test between The Probability of Borrowing Money and Newly Established Companies")
+cor.test(x = numbers$prob_borrowing, y = numbers$log_number, method = "pearson", alternative = "two.sided")
+
+print("Correlation Test between Commercial Loans and Newly Established Companies")
+cor.test(x = numbers$commercial_loans, y = numbers$log_number, method = "pearson", alternative = "two.sided")
+
+```
+
+When I looked at the correlation coefficients above, I can say that General Economic Situation Expectations is the most correlated data set to my original data. Therefore I will use it as my next independent variable. I added this new variable into the previous model below. I can say that my new variable made the previous model a little worse in terms of residual standard errors. It was 0.1825 in the previous model, but now it is 0.185. However, the new model is a little better in terms of residuals.
+
+By looking at the p-value of the new variable, it can be said that this new variable is not significantly related to my model. I will look at the outlier points of residuals from the plot of residuals versus economic expectations. If I will be able to get rid of those outlier effect, I believe that the model will be a better one.
+
+```{r regression with new variable,  message=FALSE, warning=FALSE}
+fit <- lm(log_number~-1+as.factor(month)+lag1+trend+econ_expectation, data = numbers)
+summary(fit)
+checkresiduals(fit)
+
+plot(numbers[,list(econ_expectation,residual=fit$residual)])
+
+```
+
+Below the code chunk I added the quantile 5 and 95 of the residuals with economic expectation model. I also removed the first two years from my data since they are not used due to missing points of General Economic Situation Expectations data. Now my data looks like this:
+
+```{r adding outliers, echo=FALSE,  message=FALSE, warning=FALSE}
+
+numbers <- numbers[25:132,]
+numbers[1:107, residual_with_econ_expectation:=fit$residual]
+numbers[1:107, quant5:=quantile(residual_with_econ_expectation,0.05)]
+numbers[1:107, quant95:=quantile(residual_with_econ_expectation,0.95)]
+
+numbers[,outlier_small:=as.numeric(residual_with_econ_expectation<quant5)]
+numbers[,outlier_great:=as.numeric(residual_with_econ_expectation>quant95)]
+
+head(numbers)
+
+```
+
+The final model is below. I was able to get rid of those outlier effect. Now, all of my independent variables are significant and over all model is also significant. Residual standard error is also the smallest value up to now.
+
+Residuals are also satisfies the necessary conditions. So this final model is adequate for using in forecasting.
+
+I did the exactly same operations to the other two data sets in order to see that if they can also be used in the model, however they didn't give any better version of this final model. In fact, each time I tried to implement them into model, they made the model worse and violated some assumptions for residuals. Thus, I decided not to use them at all.
+
+```{r regression with outliers,  message=FALSE, warning=FALSE}
+
+fit <- lm(log_number~-1+as.factor(month)+lag1+trend+outlier_small+outlier_great+econ_expectation, data = numbers)
+summary(fit)
+checkresiduals(fit)
+
+plot(fit$residual)
+
+```
+
+Before moving on to plotted values of both actual and predicted values, I want to see my model's not-distorted adjusted R squared value. Below I added the intercept again to see it, since it was misleading the R squared values. I can say that my model's adjusted R squared values are also fine, which made me relieved for using this final model.
+
+```{r regression with intercept,  message=FALSE, warning=FALSE}
+
+fit1 <- lm(log_number~as.factor(month)+lag1+trend+outlier_small+outlier_great+econ_expectation, data = numbers)
+summary(fit1)
+checkresiduals(fit1)
+
+```
+
+# Predicted Values
+
+```{r fitted vs original, echo=FALSE,  message=FALSE, warning=FALSE}
+
+numbers[1:107,fitted:=fitted(fit)]
+numbers[1:107,residual:=residuals(fit)]
+
+numbers %>%
+  ggplot(aes(x=fitted, y=residual)) + geom_point()
+
+numbers %>%
+  ggplot(aes(x=fitted, y=log_number)) + 
+  geom_point() +
+  geom_abline(slope=1, intercept=0)
+
+```
+
+Fitted values versus original values can be seen from the plot above. It could be a better model with a deeper investigation of the economic situations and some other independent variables. However for this homework, I think this model is adequate.
+
+To predict the December 2020 value, I need to know that if December 2020 will be a smaller outlier or not. I am assuming that I will predict it correctly, therefore residual December 2020 will not be an outlier.
+
+```{r prediction, echo=FALSE,  message=FALSE, warning=FALSE}
+
+numbers[108, "outlier_small"] <- 0
+numbers[108, "outlier_great"] <- 0
+numbers[is.na(fitted)==T,fitted:=predict(fit,numbers[is.na(fitted)==T])]
+
+cols <- c("predicted" = "orange", "actual" = "blue")
+ggplot() + 
+  geom_line(data = numbers, aes(x = trend, y = fitted,color = "predicted_log")) +
+  geom_line(data = numbers, aes(x = trend, y = log_number,color = "actual_log")) +
+  xlab('time') +
+  ylab('number of newly established firms') +
+  scale_color_manual(values = cols)
+
+```
+
+Even though it could be improved by investigating new variables further, the graph above reveals that the model was a good fit. I took the natural logarithm of the data in the first step of this homework. Now that I have the predicted values, I will do the opposite operation, taking exponentials of them, to have the actual values.
+
+```{r prediction actual, echo=FALSE, message=FALSE, warning=FALSE}
+
+numbers[,predicted_numbers:=exp(fitted)]
+numbers[,actual_numbers:=exp(log_number)]
+
+ggplot() + 
+  geom_line(data = numbers, aes(x = trend, y = predicted_numbers,color = "predicted")) +
+  geom_line(data = numbers, aes(x = trend, y = actual_numbers,color = "actual")) +
+  xlab('time') +
+  ylab('"number of newly established firms"') +
+  scale_color_manual(values = cols)
+
+print(" The predicted December 2020 value is: ")
+as.numeric(numbers[108, "predicted_numbers"])
+
+```
+
+# Conclusion
+
+In this homework, I first analyzed and tried to find the seasonality of the data the number of companies opened through the time from 2010 January to 2020 November.
+
+I added the seasonalities into model one by one. Since my purpose was to see and interpret the seasonality effect more clear, I took off the intercept from the model. After doing this, I tried to add new variables to reduce the Standard Residual Error. 
+
+I saw that some new variables didn't improve the model as I expected. Maybe if I could manipulate those variables I would be able to improve the model; however, this required a more knowledge and investigation on those variables alone. 
+
+Lastly I could form a good model, in terms of adjusted R squared values, p-values, residual standard error, and residual assumptions. After completion of the model I predicted the December value as expected.
+
+# References
+
+[Colors in R](http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf)
+
+[the Central Bank of the Republic of Turkey’s Electronic Data Delivery System](https://evds2.tcmb.gov.tr)
+
+[Turkey Electricty Consumption Time Series Regression Examples](https://moodle.boun.edu.tr/mod/resource/view.php?id=306376)
+
+[PS4 Solutions](https://moodle.boun.edu.tr/pluginfile.php/683372/mod_resource/content/1/PS%204.R)
+
+You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/hw3.Rmd)
+
