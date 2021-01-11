@@ -210,8 +210,8 @@ checkresiduals(fit1)
 numbers[1:107,fitted:=fitted(fit)]
 numbers[1:107,residual:=residuals(fit)]
 
-numbers %>%
-  ggplot(aes(x=fitted, y=residual)) + geom_point()
+#numbers %>%
+#  ggplot(aes(x=fitted, y=residual)) + geom_point()
 
 numbers %>%
   ggplot(aes(x=fitted, y=log_number)) + 
@@ -232,8 +232,8 @@ numbers[is.na(fitted)==T,fitted:=predict(fit,numbers[is.na(fitted)==T])]
 
 cols <- c("predicted" = "orange", "actual" = "blue")
 ggplot() + 
-  geom_line(data = numbers, aes(x = trend, y = fitted,color = "predicted_log")) +
-  geom_line(data = numbers, aes(x = trend, y = log_number,color = "actual_log")) +
+  geom_line(data = numbers, aes(x = trend, y = fitted,color = "predicted")) +
+  geom_line(data = numbers, aes(x = trend, y = log_number,color = "actual")) +
   xlab('time') +
   ylab('number of newly established firms') +
   scale_color_manual(values = cols)
