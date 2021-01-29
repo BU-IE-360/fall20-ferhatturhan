@@ -1,0 +1,181 @@
+---
+title: "Homework 4"
+author: "Ferhat Turhan"
+date: "29 01 2021"
+output: html_document
+---
+# Introduction
+
+In this homework the aim is to obtain a time series data as stationary as possible. After being able to transform the data to a stationary one, I am going to use it to forecast by building autoregressive and moving average models. 
+
+The data for this study is the daily electricity consumption of Turkey, which is available on [EPİAŞ](https://seffaflik.epias.com.tr/transparency/tuketim/gerceklesen-tuketim/gercek-zamanli-tuketim.xhtml). Predicting the daily electricity consumption correctly is a very important topic in Electricity Market. Even though the aim of this study is to make a time series statioanary, choosing the daily electricity consumption of Turkey as our data is quite interesting, since the electricity market is a very dynamic market.It is known that everything depends on next day's electricity demand. The companies in this market faces the problem of which price will be set to the electricity, of what will be the demand and etc. everyday. 
+
+When you look at website, daily consumption value is provided hourly. I am going to use the data from 1 January 2017 to 8 January 2021. In this study I will predict the total daily consumption, therefore I need to make some manipulations to have a better usable data. After that I will try to obtain a stationaty data by using some transformations. There are three assumptions for a time series to be stationary. Mean, variance, and the autocorrelation structure should be constant over time. I will try to achive these assumptions as much as possible. After obtaining a stationary time series, I am going to use it in autoregressive and moving avverage models to predict the consumption from 9 January to 22 January (14 days). Finally, the errors of the forecast will be analyzed.
+
+# Manipulation of Data
+
+After necessary adjustments the head of the data i below. I took the summation of the hourly data and obtained total consumption of a day. 
+
+```{r reading and manipulation, echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(lubridate)
+library(readxl)
+library(fpp)
+library(data.table)
+library(stats)
+
+bulkdata<- read_excel("C:/Users/user/Desktop/GercekZamanliTuketim-01012017-08012021.xlsx")
+colnames(bulkdata) <- c("date", "hour", "consumption")
+bulkdata <- data.table(bulkdata)
+bulkdata$date <- as.Date(parse_date_time(bulkdata$date,"Ymd"), format = "%Y-%m-%d")
+bulkdata[,consumption:=as.numeric(consumption)]
+data=bulkdata[,list(total_consumption=sum(consumption, na.rm = T)),by=list(date)]
+head(data)
+ts_data <- ts(data=data[,total_consumption], frequency = 365, start=c(2017,1,1))
+ts.plot(ts_data, xlab = "Year", ylab = "Daily Electricity Consumption",main="Electricity Consumption(2017.1.1-2021.1.8)")
+
+acf(data[,total_consumption], main = "Autocorrelation of Daily Consumption")
+```
+
+When we look at the plot above, it is abvious that there is a seasonality effect.There is a greater decrease than the previous observations in 2020, which is probably due to pandemic conditions. Only by looking this plot, there is no clear evidence that a trend exists. There is no clear observation that the variance is changing over time.
+
+If we look at the autocorrelation of the data, at lag7 autocorrelation can be clearly observed. I am going to add day types into my data table and after that I am going to remove t day effect of my data by using a simple regression model. As day effect, I used week days plus religious holidays, public holidays, and days before a holiday(arefe). I obtained the necessary informaiton from [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/electricity_demand_forecasting) and [here](https://www.epdk.gov.tr/). As in the pdf, from Sunday to Saturday day type equals 1 to 7. If the day is a religious holiday day type equals to 8. If it official holiday, day type is 9 and if the day is "arefe" day type is 10. 
+
+I am going to put these day types into a regression model. After that I am going turn all the days into wednesday by removing the coefficent difference between wednesday from consumption value. 
+
+```{r removing day effect, echo=FALSE, message=FALSE, warning=FALSE}
+daytypes <- read_excel("C:/Users/user/Desktop/Takvim_aralik_2015_aralik_2019_son.xlsx")
+data <- data[, daytypes:=daytypes$`Gün tipi`[398:1866]]
+dayeffect <- lm(total_consumption~-1+as.factor(daytypes), data)
+summary(dayeffect)
+coefficients <- dayeffect$coefficients
+coefficients <- coefficients - dayeffect$coefficients[4]
+coefficients
+data[daytypes==1, withoutdayeffect:=total_consumption +126107.099]
+data[daytypes==2, withoutdayeffect:=total_consumption +23315.445]
+data[daytypes==3, withoutdayeffect:=total_consumption +1631.823]
+data[daytypes==4, withoutdayeffect:=total_consumption]
+data[daytypes==5, withoutdayeffect:=total_consumption -2785.582]
+data[daytypes==6, withoutdayeffect:=total_consumption +4397.256]
+data[daytypes==7, withoutdayeffect:=total_consumption +45368.147]
+data[daytypes==8, withoutdayeffect:=total_consumption +227556.602]
+data[daytypes==9, withoutdayeffect:=total_consumption +123041.805]
+data[daytypes==10,withoutdayeffect:=total_consumption +147534.115]
+head(data)
+```
+
+Now that I removed the day effect from the data, let's plot the consumption of both with and without day efect. I can say that the seasonality is a little removed and the data seems to have a more linear pattern. And from autocorrelation function, it can be seen that the seasonality is mostly removed.
+
+```{r plot, echo=FALSE, message=FALSE, warning=FALSE}
+cols <- c("actual" = "orange", "without day effect" = "blue")
+ggplot() + 
+  geom_line(data = data[1:100,], aes(x = date, y = total_consumption,color = "actual")) +
+  geom_line(data = data[1:100], aes(x = date, y = withoutdayeffect,color = "without day effect")) +
+  xlab('time') +
+  ylab('Daily Electricity Consumption') +
+  scale_color_manual(values = cols)
+
+acf(data$withoutdayeffect, main = "Autocorrelation of Consumption Without Day Effect")
+```
+
+I will decompose this data to be able to remove the seasonality I didn't handle and the trend if exists. I will decompose this series multiplicatively. From the decomposition plot, I can say that random part of the data seems quite well. Mean and the variance doesn't change, which are the two assumptions of stationarity. Therfore I will use it in my forecasting models.And I will look at the autocorrelation and try to estimate best model accordingly.
+
+```{r decomposition , echo=FALSE, message=FALSE, warning=FALSE}
+ts_data <- ts(data=data$withoutdayeffect, frequency = 365, start=c(2017,1,1) )
+consumption_multiplicative<-decompose(ts_data,type="multiplicative")
+plot(consumption_multiplicative) 
+
+random <- consumption_multiplicative$random
+
+```
+
+# Forecasting
+
+```{r acf and pacf , echo=FALSE, message=FALSE, warning=FALSE}
+
+acf(random,  na.action = na.pass)
+pacf(random,  na.action = na.pass)
+
+```
+
+When I look at the Autocorrelation and Partial Autocorrelation functions, I can see that autocorrelation decreases regularly. Therfore I can say that 1 order differencing. Since autocorrelation is huge, I can also use autoregressive model. From partial autocorrelation function, the drastic drop seems to at second or third lags. So I will built models of both to see that which is better. I will compare the models by looking at their AIC values. AIC estimates the relative amount of information lost by a given model, so the lower the AIC, the better the model.
+
+```{r model estimates , echo=FALSE, message=FALSE, warning=FALSE}
+model1 <- arima(random, order=c(2,1,0))
+model1
+
+model2 <- arima(random, order=c(3,1,0))
+model2
+```
+
+When I looked at my proposed models, second model has a lower AIC value. However, I also will check the auto.arima() function to see if there is a better model. 
+
+```{r auto arima,  echo=FALSE, message=FALSE, warning=FALSE }
+model3 <- auto.arima(random)
+model3
+```
+
+As we can see, auto.arima() suggested that we should use also second order moving average in our model. This gives a lower AIC value, so I will use this when forecasting the next 14 days' daily consumption.
+
+```{r fitted, echo=FALSE, message=FALSE, warning=FALSE}
+model <- arima(random, order=c(3,1,2))
+model_fitted <- random - residuals(model)
+model_fitted_transformed <- model_fitted*consumption_multiplicative$trend*consumption_multiplicative$seasonal
+
+
+model_forecast <- predict(model, n.ahead = 14)$pred
+model_forecast=ts(model_forecast,frequency = 365,start=c(2021,9))
+
+
+last_trend_value <- tail(consumption_multiplicative$trend[!is.na(consumption_multiplicative$trend)],1)
+seasonality <- consumption_multiplicative$seasonal[9:22]
+
+model_forecast <- model_forecast*last_trend_value*seasonality
+model_forecast
+
+```
+The values above are actually the consumption without the day effect. I will now do the reverse addition and obtain the actual consumption predictions. Below is the final forecasted daily electricity consumption values from 9 January 2021 to 22 January 2021.
+
+```{r actual consumption prediction,  echo=FALSE, message=FALSE, warning=FALSE}
+model_forecast <- model_forecast + coefficients
+model_forecast
+
+statistic<- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  l = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(l)
+}
+
+actual <- read_excel("C:/Users/User/Desktop/actual.xlsx")
+
+statistic (actual$consumption, model_forecast)
+```
+
+The statistics show that our model is not the best model at all. However MAPE value can be considered adequate for this model. It could be improved if some other independent variables were added into model such as temperature covid situation, and production endex. However, for this study those are ignored, since the main purpose was to build a stationary model.
+
+# Conclusion
+
+As conclusion, in this study I tried to forecast 14 days ahead of the daily electricity consumption. First I tried to make the data a stationary time series, by removing the day type effect. After that, I created an ARIMA model (autoregressive and moving average) to predict the new values. Lastly, I compared my predictions with the actual consumption values.
+
+# References
+
+[Colors in R](http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf)
+
+[EPİAŞ](https://seffaflik.epias.com.tr/transparency/tuketim/gerceklesen-tuketim/gercek-zamanli-tuketim.xhtml)
+
+[EPDK](https://www.epdk.gov.tr/)
+
+[Turkey Electricty Consumption Time Series Regression Examples](https://moodle.boun.edu.tr/mod/resource/view.php?id=306376)
+
+[PS5 Solutions](https://moodle.boun.edu.tr/mod/resource/view.php?id=321447)
+
+[Day Effect](https://bu-ie-360.github.io/fall20-ferhatturhan/files/electricity_demand_forecasting)
+
+You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/hw4.Rmd)

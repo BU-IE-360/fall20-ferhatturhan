@@ -15,3 +15,7 @@
 ## Homework 3 (10.01.2021)
 
 [Here](files/ferhatturhan_homework_3.html) is my Newly Established Firms time series regression model. 
+
+## Homework 4 (29.01.2021)
+
+[Here](files/ferhatturhan_homework_4.html) is the transformation of the time series Daily Electricity Consumption data into stationary time series data.
