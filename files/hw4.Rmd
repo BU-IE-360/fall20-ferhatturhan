@@ -39,7 +39,7 @@ acf(data[,total_consumption], main = "Autocorrelation of Daily Consumption")
 
 When we look at the plot above, it is abvious that there is a seasonality effect.There is a greater decrease than the previous observations in 2020, which is probably due to pandemic conditions. Only by looking this plot, there is no clear evidence that a trend exists. There is no clear observation that the variance is changing over time.
 
-If we look at the autocorrelation of the data, at lag7 autocorrelation can be clearly observed. I am going to add day types into my data table and after that I am going to remove t day effect of my data by using a simple regression model. As day effect, I used week days plus religious holidays, public holidays, and days before a holiday(arefe). I obtained the necessary informaiton from [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/electricity_demand_forecasting) and [here](https://www.epdk.gov.tr/). As in the pdf, from Sunday to Saturday day type equals 1 to 7. If the day is a religious holiday day type equals to 8. If it official holiday, day type is 9 and if the day is "arefe" day type is 10. 
+If we look at the autocorrelation of the data, at lag7 autocorrelation can be clearly observed. I am going to add day types into my data table and after that I am going to remove t day effect of my data by using a simple regression model. As day effect, I used week days plus religious holidays, public holidays, and days before a holiday(arefe). I obtained the necessary informaiton from [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/electricity_demand_forecasting.pdf) and [here](https://www.epdk.gov.tr/). As in the pdf, from Sunday to Saturday day type equals 1 to 7. If the day is a religious holiday day type equals to 8. If it official holiday, day type is 9 and if the day is "arefe" day type is 10. 
 
 I am going to put these day types into a regression model. After that I am going turn all the days into wednesday by removing the coefficent difference between wednesday from consumption value. 
 
@@ -176,6 +176,6 @@ As conclusion, in this study I tried to forecast 14 days ahead of the daily elec
 
 [PS5 Solutions](https://moodle.boun.edu.tr/mod/resource/view.php?id=321447)
 
-[Day Effect](https://bu-ie-360.github.io/fall20-ferhatturhan/files/electricity_demand_forecasting)
+[Day Effect](https://bu-ie-360.github.io/fall20-ferhatturhan/files/electricity_demand_forecasting.pdf)
 
 You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/hw4.Rmd)
