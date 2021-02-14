@@ -19,3 +19,7 @@
 ## Homework 4 (29.01.2021)
 
 [Here](files/ferhatturhan_homework_4.html) is the transformation of the time series Daily Electricity Consumption data into stationary time series data.
+
+## Final Exam (06.01.2021)
+
+[Here](files/final.html) is my final exam, which consists of forecasting the solar production energy by using different approaches.
