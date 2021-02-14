@@ -1,0 +1,353 @@
+---
+title: "Final Exam"
+author: "Ferhat Turhan"
+date: "06 02 2021"
+output: html_document
+---
+
+# Introduction
+
+This final exam is about to create forecasting models using different approaches. Relevant data is given by the instructor. It can be found [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/production_data_with_weather.csv). It is obtained from [EPİAŞ](https://seffaflik.epias.com.tr/transparency/).
+
+This study is about providing hourly solar power prediction for the next day. Predictions will be made by using two approaches: Forecasting with Time Series and Forecasting with Regression. Let' first read the data and look at its behavior through time. 
+
+```{r reading and plotting, echo=FALSE, message=FALSE, warning=FALSE}
+library(httr)
+library(data.table)
+library(fpp)
+library(forecast)
+library(urca)
+library(ggcorrplot)
+library(naniar)
+
+data <- fread('production_data_with_weather.csv')
+ts <- ts(data$Production, frequency = 7, start = c(2019,10,09))
+plot(ts, type='l',xlab = "Index", ylab = "Production",main="Hourly Production", col="blue")
+plot(ts[1:2400], type='l',xlab = "Index", ylab = "Production",main="Hourly Production (First 100 days)", col="cyan")
+
+```
+
+First plot is of the all data provided. However, to be able to see and interpret the behavior more accurate I also plotted the first 100 days.
+
+The plot of the hourly production data shows that there is an obvious seasonality. There is no noticeable trend. Mean and the variance seem that they don't change over time. Constant mean and and variance indicates that the data is stationary. Unfortunately there is a problem with this data. As expected, the production values of solar power are 0 during night hours. These values can distort our prediction models, therefore I am going to use mean of daily data and will forecast the hourly solar power by transforming the daily predictions into hourly predictions.
+
+```{r daily data, echo=FALSE, message=FALSE, warning=FALSE }
+
+dailydata <- data[,list(mean_Production=mean(Production, na.rm = T)),by=list(Date)]
+ts_daily <- ts(dailydata$mean_Production, frequency = 7, start = c(2019,10,09))
+plot(ts_daily, type='l',xlab = "Index", ylab = "Production",main="Daily Production", col="blue")
+
+```
+
+The plot of the daily production seems quite different from the plot of the hourly production. First of all the mean and variance are changing over time, indicating that daily production data is not stationary.There is also a changing trend. It looks like in the first place there is a decreasing trend which is expected due to start of winter months. After that there is a increasing trend which is also due to start of more warm days, meaning more sunny days. 
+
+```{r, acf first, echo=FALSE, message=FALSE, warning=FALSE }
+
+acf(ts_daily,  na.action = na.pass, main = "ACF of Daily Production")
+pacf(ts_daily,  na.action = na.pass, main = "PACF of Daily Production")
+
+```
+
+From autocorrelation function, it seems that the data is highly autocorrelated. From partial autocorrelation function it is obvious that at lag 1, daily production function is significantly correlated. I will make more comment on this when I form my models. Now let's start with Forecasting with Time Series Analysis.
+
+# Forecasting with Time Series
+
+In the first place I will decompose the daily production data into its components: trend, seasonality, and random. As I discussed above there is a changing trend in the data. In addition to that, from the plot below, which is the plot for first four weeks, I think that there is a possible weekly seasonality. Moreover, since the weather is changing, it is possible that the data has monthly seasonality.
+
+```{r seasonality, echo=FALSE, message=FALSE, warning=FALSE }
+
+plot(ts_daily[1:28], type='l',xlab = "Index", ylab = "Production",main="Daily Production for 4 Weeks", col="blue")
+
+```
+
+Below, one can find both additive and multiplicative decomposition of daily data.
+
+```{r decomposition, echo=FALSE, message=FALSE, warning=FALSE }
+
+data_additive<-decompose(ts_daily,type="additive")
+plot(data_additive, col="blue")
+random1 <- data_additive$random
+
+data_multiplicative<-decompose(ts_daily,type="multiplicative")
+plot(data_multiplicative, col="orange")
+random2 <- data_multiplicative$random
+
+summary(ur.kpss(random1))
+summary(ur.kpss(random2))
+
+```
+
+From above I told that variance is changing over time. In the first place I thought that multiplicative decomposition would be a better choice due to variations in variance, however KPSS Unit Root tests suggest the opposite. Test statistics proposes that additive decomposition is a better option here.
+
+Now I am going to look at the acf and pacf plots so that I can propose some ARIMA models.
+
+```{r acf and pacf for ARIMA, echo=FALSE, message=FALSE, warning=FALSE }
+
+acf(random1,  na.action = na.pass, main = "ACF of Random Component")
+pacf(random1,  na.action = na.pass, main = "PACF of Random Component")
+
+```
+
+From ACF plot I can suggest that a moving average model can be applied. I will also use the fourth order autoregressive model since the drastic drop is in fourth lag on PACF plot. Since my data is also seasonal I can add seasonal affect into model. I am going to decide if a model with seasonal order is better. I think using moving average in seasonal order could create a better model since there is a great decrease and increase between the seasons. Below is my suggested models.
+
+```{r models, echo=FALSE, message=FALSE, warning=FALSE }
+
+model1 <- arima(random1, order = c(1,0,1))
+print("Model 1")
+model1
+
+model2 <- arima(random1, order = c(4,0,1))
+print("Model 2")
+model2
+
+model3 <- arima(random1, order = c(4,0,1), seasonal = c(0,0,1))
+print("Model 3")
+model3
+
+model4 <- arima(random1, order = c(4,0,1), seasonal = c(1,0,1))
+print("Model 4")
+model4
+
+#model5 <- arima(random1, order = c(4,0,1), seasonal = c(2,0,1))
+#print("Model 5")
+#model5 This model was better of all, however there was an error related to seasonal autoregressive order 2. I couldn't solve the problem even though I tried to solve for 2 hours.
+
+print("Auto Arima")
+auto.arima(random1)
+```
+
+By looking at the AIC values, model 4 is the best option so far. I also used Auto Arima if there is something better, maybe I couldn't detect. However, model 4 seems to be a better model.
+
+## Predictions
+
+Predictions will be made through the training data, which is between December 1 and January 31. I assume that today is 30 November. Everytime I predict the next day's production values (hourly), I will update the data and the model. I transformed the daily data by using the ratios of the day 1 week before the predicted day.
+
+```{r loop, echo=TRUE, message=FALSE, warning=FALSE}
+i <- 0
+training_data <- dailydata[1:481]
+training_data <- training_data[419:481,mean_Production:= NA]
+predictions1 <- data.table(data[10033:11544,1:2])
+k<-1
+while(i<=62)
+{
+current <- training_data[1:(418 + i)]
+ts_training <- ts(current$mean_Production, frequency = 7, start = c(2019,10,09))
+decomposition<-decompose(ts_training,type="additive")
+random <- decomposition$random
+
+model <- arima(random, order = c(4,0,1), seasonal = c(1,0,1))
+#fit <- random - residuals(model)
+#fit_transformed <- decomposition$seasonal + decomposition$trend + fit
+
+model_forecast <- predict(model, n.ahead = 2)$pred
+model_forecast <- ts(model_forecast,frequency = 7)
+  
+last_trend_value <- tail(decomposition$trend[!is.na(decomposition$trend)],1)
+seasonality <- decomposition$seasonal[(418+i)]
+model_forecast <- model_forecast + last_trend_value + seasonality
+training_data$mean_Production[(418+i+1)] <- model_forecast[1]
+j<- 1
+while(j<=24)
+{
+ratio <- data[(9865+k-1), Production]/training_data$mean_Production[(411+i+1)]
+predictions1[(k), forecast:=(training_data$mean_Production[(418+i+1)])*ratio]
+j <- j+1
+k <- k+1
+}
+i <- i+1
+}
+
+```
+
+# Forecasting with Regression
+
+Now that I have predicted the hourly production values with time series analysis, I move on to another approach. I will use multiple regression model. In the data provided for this study, there are lots of independent variables. In addition to those variables I will also add trend and seasonality variables. I will add those from the decomposition part. In this approach, again I will predict the daily production and then transform it into hourly predictions. First let's turn all variables into daily mean values and add the trend and seasonality variables. After adding those variables, head of the data is below.
+
+```{r dailydata extension, echo=FALSE, message=FALSE, warning=FALSE }
+
+dailydata2 <- data[,list(mean_Production=mean(Production, na.rm = T),
+                  mean1=mean(CLOUD_LOW_LAYER_37.75_34.25, na.rm = T),
+                  mean2=mean(CLOUD_LOW_LAYER_37.75_34.5, na.rm = T),
+                  mean3=mean(CLOUD_LOW_LAYER_38_34.25, na.rm = T),
+                  mean4=mean(CLOUD_LOW_LAYER_38_34.5, na.rm = T),
+                  mean5=mean(DSWRF_37.75_34.25, na.rm = T),
+                  mean6=mean(DSWRF_37.75_34.5, na.rm = T),
+                  mean7=mean(DSWRF_38_34.25, na.rm = T),
+                  mean8=mean(DSWRF_38_34.5, na.rm = T),
+                  mean9=mean(TEMP_37.75_34.25, na.rm = T),
+                  mean10=mean(TEMP_37.75_34.5, na.rm = T),
+                  mean11=mean(TEMP_38_34.25, na.rm = T),
+                  mean12=mean(TEMP_38_34.5, na.rm = T)),by=list(Date)]
+
+daliydata2 <- dailydata2[,seasonal:=data_additive$seasonal]
+daliydata2 <- dailydata2[,trend:=data_additive$trend]
+
+head(dailydata2)
+
+```
+
+Now let's create the very first regression model. In this model I will use all the available data and then see what can be done next.
+
+```{r lm1,  echo=FALSE, fig.height= 10, message=FALSE, warning=FALSE }
+ts_data2 <- ts(dailydata2[4:480])
+ggcorrplot(corr = cor(ts_data2),
+           type = "upper",lab = TRUE,
+           title = "Correlation Matrix",
+           legend.title = "Correlation"
+          )
+
+
+fit1 <- lm(mean_Production~mean1+mean2+mean3+mean4+mean5+mean6+mean7+mean8+mean9+mean10+mean11+mean12+seasonal+trend, dailydata2)
+summary(fit1)
+
+```
+
+Even though the correlation matrix shows that there are significant correlations between production and most of the independent variable, regression model says something different. From the model above, I can see that some of the provided independent variables are not significant for predicting daily solar power production values. I will remove them except seasonal variable as next step.
+
+```{r lm2, echo=FALSE, message=FALSE, warning=FALSE }
+
+fit2 <- lm(mean_Production~mean1+mean8+mean9+mean10+mean12+seasonal+trend, dailydata2)
+summary(fit2)
+
+```
+
+From model 2, I can say that removing insignificant variables helped decreasing residual standard errors. The seasonal component of the data seems insignificant again in this model. I didn't expect this. I will remove it and add months as factor into model.
+
+```{r lm3, echo=FALSE, message=FALSE, warning=FALSE }
+
+dailydata2[, month:= as.factor(month(Date))]
+fit3 <- lm(mean_Production~mean1+mean8+mean9+mean10+mean12+as.factor(month)+trend, dailydata2)
+summary(fit3)
+
+```
+
+Now I have a better model in terms of residual standard errors, and r-squared values. Even though some months seem that they are not significant, I won't be removing them since I added them as seasonality effect, but I will remove the mean9 variable, since it became insignificant.
+
+Lastly, I will try to add lag 1 value into model, since I know from previous analysis that daily production values are related with previous day.
+
+```{r lag1 lm4, echo=FALSE, message=FALSE, warning=FALSE }
+lag1 <- c(0, dailydata2$mean_Production)
+dailydata2 <- cbind(dailydata2,lag1=lag1[1:(length(lag1)-1)])
+dailydata2 <- dailydata2 %>% replace_with_na(replace = list(lag1 = 0))
+
+fit4 <- lm(mean_Production~mean1+mean8+mean10+mean12+as.factor(month)+trend+lag1, dailydata2)
+summary(fit4)
+```
+
+It seems that lag1 isn't as good as I expected. It is probably due to the existence of trend variables. Because the best model up to now is the third one, I will use model 3 and add outlier residuals. 
+
+```{r outliers, echo=FALSE, message=FALSE, warning=FALSE }
+
+dailydata2[,residuals:= NA]
+dailydata2$residuals[4:480]<- fit3$residuals
+dailydata2[!is.na(residuals), quant5:=quantile(residuals,0.05)]
+dailydata2[!is.na(residuals), quant95:=quantile(residuals,0.95)]
+dailydata2[,outlier_small:=as.numeric(residuals<quant5)]
+dailydata2[,outlier_great:=as.numeric(residuals>quant95)]
+dailydata2[is.na(outlier_great),outlier_great:=0]
+dailydata2[is.na(outlier_small),outlier_small:=0]
+
+fit5 <- lm(mean_Production~mean1+mean8+mean10+mean12+as.factor(month)+trend+outlier_great+outlier_small, dailydata2)
+summary(fit5)
+checkresiduals(fit5)
+
+```
+
+It can be seen that outliers made the model much better in terms of residual standard error and r-squared values. Also, when we check the residuals, they don't violate much the assumptions of being normally distributed, having zero mean, and not being autocorrelated. I am going to use this model for my predictions.
+
+## Predictions
+
+Predictions will be made through the training data, which is between December 1 and January 31. I assume that today is 30 November. Every time I predict the next day's production values (hourly), I will update the data and the model. I transformed the daily data by using the ratios of the day 1 week before the predicted day. The format is just like the one I used before.
+
+```{r predictions2, echo=TRUE, message=FALSE, warning=FALSE}
+
+i <- 0
+training_data2 <- dailydata2[1:481]
+training_data2 <- training_data2[419:481,mean_Production:= NA]
+training_data2 <- training_data2[420:481,lag1:= NA]
+training_data2 <- training_data2[419:481,outlier_great:= 0]
+training_data2 <- training_data2[419:481,outlier_small:= 0]
+training_data2$trend[481] <- training_data2$trend[480]
+predictions2 <- data.table(data[10033:11544,1:2])
+k<-1
+while(i<=62)
+{
+current2 <- training_data2[1:(419 + i)]
+
+fit <- lm(mean_Production~mean1+mean8+mean10+mean12+as.factor(month)+trend+outlier_great+outlier_small, current2)
+current2[4:(418+i),fitted:=fitted(fit)]
+current2[is.na(fitted)==T,fitted:=predict(fit, current2[418+i+1])]
+
+training_data2$mean_Production[(418+i+1)] <- current2$fitted[418+i+1]
+j<- 1
+while(j<=24)
+{
+ratio <- data[(9865+k-1), Production]/training_data2$mean_Production[(411+i+1)]
+predictions2[(k), forecast:=(training_data2$mean_Production[(418+i+1)])*ratio]
+j <- j+1
+k <- k+1
+}
+i <- i+1
+}
+```
+
+Now that I have predicted the test period with 2 different approaches, I will compare the two by calculating error statistics.
+
+# Comparison of Models
+
+```{r comparison, echo=FALSE, message=FALSE, warning=FALSE }
+
+statistic<- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  l = data.frame(n,mean,sd,bias,mad,wmape)
+  return(l)
+}
+
+print("Statistics for Time Series Approach")
+statistic(data$Production[10033:11544], predictions1$forecast)
+
+print("Statistics for Regression Approach")
+statistic(data$Production[10033:11544], predictions2$forecast)
+
+```
+
+From the test statistics above I can say that the model in which regression approach used is a better one according to weighted mean absolute percentage error(WMAPE). I will be using that model for my final forecasts. This WMAPE values are quite high. I think the main problem in those models are in transforming the daily data into hourly values. Transforming approach could be done better by using other approaches. For example, instead of using only the previous weeks' ratios, I could have create another algorithm using weather data or something else. I am curious if the only problem was transforming the daily predictions into hourly predictions. Below I calculated the statistics of daily predictions.
+
+```{r statistics for daily, echo=FALSE, message=FALSE, warning=FALSE}
+
+predictions1_mean <- predictions1[,list(mean_Production=mean(forecast, na.rm = T)),by=list(Date)]
+predictions2_mean <- predictions2[,list(mean_Production=mean(forecast, na.rm = T)),by=list(Date)]
+
+print("Statistics for Time Series Approach -Daily- ")
+statistic(dailydata$mean_Production[419:481], predictions1_mean$mean_Production)
+
+print("Statistics for Regression Approach -Daily- ")
+statistic(dailydata$mean_Production[419:481], predictions2_mean$mean_Production)
+
+```
+
+When I look at the WMAPE values of daily predictions, I can say that both model are better than hourly predictions. This demonstrates that transforming phase was a huge problem. However, WMAPE values are still not good enough for daily predictions especially for the first model. I can say that I could have used better ARIMA models and maybe more manipulations to make the time series more stationary. For regression part, I didn't make much research on independent X variables. Maybe if I have more information about them, I could have used them more efficient.
+
+# Conclusion
+
+To conclude, I have forecasted hourly solar power production for a period of two months. I did this study by using two different forecasting approaches: Forecasting with Time Series and Forecasting with Regression. After creating different models for both approaches, I selected the best ones from my observations. After that I compared two models of the two approaches, using the test statistic WMAPE on forecasts for test period. In the comparison part of the study I also discussed possible differences which could have made models better.
+
+My research for this study showed that in terms of predicting the solar power production, regression approach is a better approach for predicting. Below one can find the final predictions.
+
+```{r conclusion, echo=FALSE, message=FALSE, warning=FALSE }
+
+print(predictions2, nrows = 1512)
+
+```
+
+# References
+
+[EPİAŞ](https://seffaflik.epias.com.tr/transparency/)
+
+You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/final.Rmd)
