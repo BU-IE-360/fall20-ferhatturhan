@@ -20,6 +20,14 @@
 
 [Here](files/ferhatturhan_homework_4.html) is the transformation of the time series Daily Electricity Consumption data into stationary time series data.
 
+-----------------------------------------------------------------------------------------------------------
+
+## Group Project (15.02.2021)
+
+[Here](files/ferhatturhan_homework_4.html) is our group project on forecasting the hourly electricity consumption.
+
+-----------------------------------------------------------------------------------------------------------
+
 ## Final Exam (06.01.2021)
 
 [Here](files/final.html) is my final exam, which consists of forecasting the solar production energy by using different approaches.
