@@ -1,0 +1,440 @@
+---
+title: "IE 360 Project Report"
+author: "Group 12: Tufan Berk Tuğ, Ferhat Turhan, Aral Dörtoğul"
+date: "15/01/2021"
+output:
+  html_document:
+    number_sections: true
+    code_folding: hide
+    highlight: tango    # Code highlighting theme
+    theme: yeti         # Webpage's theme
+    
+    # Table of contents
+    # toc: true
+    # toc_float:
+    #   collapsed: true
+    #   smooth_scroll: true
+
+# References 
+references:
+- id: researchStudy
+  title: "Isınma ve Soğuma Derece Günlerin Elektrik Tüketimi Üzerindeki Etkisi"
+  author:
+  - family: Toros
+    given: Hüseyin
+  - family: Aydın
+    given: Derya
+  - family: Kavak
+    given: Ahmet Faruk
+  editor:
+  - family: Deniz
+    given: Ali
+  - family: Efe
+    given: Bahtiyar
+  - family: Durna
+    given: Bihter
+  - family: Çavuş
+    given: Pelin Cansu
+  URL: 'https://www.researchgate.net/publication/321155122_isinma_ve_soguma_derece_gunlerin_elektrik_tuketimi1'
+  type: article
+  issued:
+    year: 2015
+    month: 4
+  accessed:
+    year: 2021
+    month: 2
+    
+- id: hdd_cdd
+  title: "Heating Degree Day - HDD"
+  author:
+  - family: Chen
+    given: James
+  URL: 'https://www.investopedia.com/terms/h/heatingdegreeday.asp'
+  type: article
+  issued:
+    year: 2019
+    month: 4
+    day: 14
+  accessed:
+    year: 2021
+    month: 2
+    day: 13
+---
+
+<!-- Justify text -->
+<style>body {text-align: justify}</style>
+
+```{r Setup, include=FALSE}
+library(knitr)      # a general-purpose package for dynamic report generation in R
+library(ggplot2)    # to create elegant data visualisations using the grammar of graphics
+library(data.table) # an extension of "data.frame"
+library(forecast)   # to use forecasting functions for time series and linear models
+library(readxl)     # to read excel files
+library(knitr)
+opts_chunk$set(tidy.opts = list(width.cutoff = 60),
+               tidy = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               fig.width = 8,
+               fig.align ='center')
+```
+
+# Introduction    
+
+In this project, the main task is to develop an approach for forecasting Turkey's hourly electricity consumption rate (MWh) from 30 January 2021 to 13 February 2021. Every day, the predictions consist of the electricity consumption rates of the next 24 hours of the next day using the data available, i.e. electricity consumption data until the day before (included).
+  
+In addition to the past consumption data, the hourly temperature data belonging to seven different locations close to the big cities in Turkey are also provided. These cities are Antalya, Adana, Konya, İzmir, Eskişehir, Ankara and İstanbul respectively. However, some of the locations coincide with the outskirts of the cities, so they may not  reflect the temperatures of the corresponding cities accurately.
+  
+Moreover, the monthly industrial production index data is incorporated to the prediction model so that the residuals resulting from lower-than-normal production levels can be explained.    
+  
+The best point to start is analyzing the data visually. Here is the plot containing three consecutive days:
+
+```{r Daily Pattern 1}
+# Read data from file
+bulkdata <- fread('bulk_consumption_with_temp.csv')
+
+# Data manipulation
+bulkdata <- bulkdata[, Date := as.Date(Date)]
+upcons <- fread('realtimecons.csv')
+upcons[,Consumption := gsub('\\,', '', `Consumption (MWh)`)]
+upcons[,Consumption := as.numeric(Consumption)]
+bulkdata$Consumption <- upcons$Consumption[1:nrow(bulkdata)]
+
+# Plotting a part of data
+plot(bulkdata$Consumption[1:72],
+     xlab = "Hour",
+     ylab = "Consumption (MWh)",
+     main = "Hourly Electricity Consumption Data between 01/01/17 and 03/01/17",
+     type = 'l')
+```
+  
+As can be seen above, hourly electricity consumption patterns of different days are similar. However, the overall consumption levels change from day to day. From now on, data is going to be transformed from hourly to daily level by using **mean consumption** for convenience. The back transformation from daily to hourly levels will be mentioned later. To see the daily patterns, three weeks of daily consumption data is plotted below:
+  
+```{r Daily Pattern 2}
+# Adding weighted  mean temperature column to bulkdata
+bulkdata[, weightedT:= 0.0919*T_1 + 0.0721*T_2 + 0.066*T_3 + 0.1656*T_4 + 0.0321*T_5 + 0.1504*T_6 + 0.4219*T_7]
+
+daily_data <- bulkdata[,list(mean_consumption=mean(Consumption, na.rm = T),
+                             mean_temp = mean(weightedT, na.rm = T)), by = list(Date)]
+
+# Reading day type data from file
+day_type <- read_excel("day_type.xlsx", range = "C399:C1866", col_names = FALSE)
+
+# Adding day_type column to daily_data
+daily_data <- cbind(daily_data, day_type)
+names(daily_data)[4] <- "day_type"
+
+# Plotting a portion of daily data
+ggplot(data = daily_data[1:21], aes(x = Date, y = mean_consumption)) +
+  geom_line(color = "darkred") +
+  labs(title = "Daily Consumption Data between 01/01/17 and 21/01/17 ",
+       x = "Date",
+       y= "Consumption (MWh)") +
+  scale_x_date(date_minor_breaks = "1 day", date_breaks = "3 days", date_labels = "%d %b") +
+  theme_minimal()
+```
+  
+Plot above implies that daily consumption data has a weekly pattern with lows on weekends. To model this pattern, day types in the model are going to be used. Day types are going to indicate the days of the week.
+  
+Next, it is sensible to plot the data in a wholesome manner to see any yearly pattern:
+  
+```{r Daily Pattern 3}
+# Plotting the whole daily data
+ggplot(data = daily_data[Date < '2021-01-01'], aes(x=Date, y= mean_consumption)) +
+  geom_line(color= "darkred") +
+  labs(title = "Daily Electricity Consumption Data between 01/01/17 and 01/01/21 ",
+       x = "Date",
+       y= "Consumption (MWh)") +
+  scale_x_date(date_minor_breaks = "3 months", date_breaks = "6 months", date_labels = "%b %Y") +
+  theme_minimal()
+```
+
+As expected, the data also has a seasonal pattern with highs on summers and winters. Hence, it makes sense to add another regressor indicating the month. Along with lagged consumption values, these two factors will be the non-external regressors.
+  
+In order to use the temperature data in the model without making the model complicated, weighted means of 7 different temperature values are calculated. Weights are determined using the *consumption proportions* of these cities in Turkey in 2019 and these proportions are supplied by [Republic of Turkey Energy Market Regulatory Authority][EPDK] (*Turkish: T.C. Enerji Piyasası Düzenleme Kurumu (EPDK)*). After summarizing 7 values in one weighted mean temperature value, it will be transformed into daily basis by taking means as it is done for consumption data. After this point, the most crucial part is to decide how to use these temperatures. The method used is explained with reasons in the next section.
+
+# Related Literature 
+
+In this project, temperature's effect on electricity consumption is approached in a unique way. From the lectures, it is known that there is no direct linear relationship between temperature and electricity consumption. Therefore, a better relationship between the two is needed. A [research study][study] made by Derya AYDIN, Ahmet Faruk KAVAK and Hüseyin TOROS which favors **heating degree day (HDD)** and **cooling degree day (CDD)** values over temperature itself when modeling electricity consumption..
+
+Basically, heating degree day (HDD) is a measurement aimed to quantify the demand for energy needed to heat a building. HDD values are obtained from measurements of outside air temperature. The heating necessities of a given building at a particular region are considered to be directly proportional to the HDD value at that region. Oppositely, cooling degree day (CDD), quantifies demand for air conditioning. [@hdd_cdd]
+
+HDD expresses how cold the average air temperature is in a day compared to the base value. In other words, the high number of heating degree days means that the need for heating is high in that area. CDD expresses how hot the average temperature of a day is compared to the base value. The number of degree days for cooling also refers to the number of days needed for cooling. [@researchStudy, pp. 30] For example, if HDD is 3, then one will be in need of heating for 3 degrees. The logic behind CDD is also the same. For instance, if CDD is 3, then one will be in need of cooling for 3 degrees.
+  
+From the definitions, base degrees have to be chosen for HDD and CDD computations. In the research study, the base degrees 18°C and 22°C are suggested for HDD and CDD, respectively. [@researchStudy, pp. 36] In this project, different combinations of other base degrees for HDD and CDD are tested. However, the base degrees 16°C and 20°C are the most correlated ones, which will be shown in the later parts of this report.
+
+The formulas of HDD and CDD are: [@researchStudy, pp. 31]
+
+$$
+\mathrm{HDD} = 
+\begin{cases}
+  (T_b - T_m) \times d & T_m \leq T_b \\
+  0                    & T_m > T_b
+\end{cases}
+\hspace{4em}
+\mathrm{CDD} = 
+\begin{cases}
+  (T_m - T_b) \times d & T_m \geq T_b \\
+  0                    & T_m < T_b
+\end{cases}
+$$
+
+Where
+
+1. $T_b$: Base temperature
+2. $T_m$: Daily average temperature
+3. $d$: number of days
+
+There is also one more useful information used from the research study: the day type. It is mentioned above that data has weekly seasonality. In addition to days of the week, three more day types are included: religious holidays (*Eid al-Fitr* and *Eid al-Adha*), national holidays, and eve days. [@researchStudy, pp. 33-35] With the help of these additional day types, outliers resulting from holidays are greatly reduced. In the research study, it is suggested that the day type's effect on consumption can be discarded. This approach is not used in this model. Instead, these day types are added as regressors in the regression model in order to reduce the steps for forecasting.
+
+# Approach
+
+In this section, one base model will be established with only day type and month regressors, and the addition of other regressors will be decided with a comparative analysis. The base model is as follows:
+
+```{r Approach 1}
+# Adding month column to daily_data
+daily_data[, month:= as.factor(month(Date))]
+
+# First linear regression model
+model_base <- lm(formula = mean_consumption~ -1 + as.factor(day_type) + as.factor(month),
+             data =  daily_data)
+summary(model_base)
+checkresiduals(model_base)
+```
+
+From the outputs above, it is possible to see that day type and months have significant effects on the consumption amounts. Base model's residual standard error is 1469 which is the value that allows comparison between models. From residual analysis, it can be seen that none of the linear regression assumptions holds: The mean and variance of residuals are not stationary, residuals are highly autocorrelated, and normality assumption doesn't hold either. 
+
+Next, an autoregressive part consisting of lag1 values of consumption data will be added with the expectation of lowering autocorrelation. New model is as follows:
+
+```{r Approach 2}
+# Adding consumption lag-1 column to daily_data
+daily_data[, lag_1:= shift(mean_consumption,1)]
+
+# Second linear regression model
+model <- lm(formula = mean_consumption~ -1 + as.factor(day_type) + as.factor(month) +
+               lag_1,
+             data = daily_data)
+summary(model)
+checkresiduals(model)
+```
+
+New model's residual standard error is almost the half of the base model, and the lag_1 regressor is highly significant. These results imply that added regressor is useful on explaining the data. New regressor was also helpful at decreasing the autocorrelation and stationarizing the mean of residuals as expected.
+  
+At this point, temperature's effect will be added to the model with the help of CDD and HDD calculations as mentioned before. CDD20, CDD22 and HDD16, HDD18 options are compared and HDD16 - CDD20 pair is the most successful pair. Here is the new version of the model with temperature effect added:
+
+```{r Approach 3}
+# Calculating various HDD and CDD data and adding them to daily_data
+daily_data <- daily_data[mean_temp<20,CDD20:=0]
+daily_data <- daily_data[is.na(CDD20),CDD20:= mean_temp - 20]
+daily_data <- daily_data[mean_temp<22,CDD22:=0]
+daily_data <- daily_data[is.na(CDD22),CDD22:= mean_temp - 22]
+
+daily_data <- daily_data[mean_temp>16,HDD16:=0]
+daily_data <- daily_data[is.na(HDD16),HDD16:= 16 - mean_temp]
+daily_data <- daily_data[mean_temp>18,HDD18:=0]
+daily_data <- daily_data[is.na(HDD18),HDD18:= 18 - mean_temp]
+
+# Adding second model's residuals to daily_data
+daily_data[, residual := NA]
+daily_data$residual[2:1468] <- model$residuals
+
+# Third linear regression model
+model <- lm(formula = mean_consumption~ -1 + as.factor(day_type) + as.factor(month) +
+               lag_1 +
+               HDD16 + CDD20,
+             data = daily_data)
+summary(model)
+checkresiduals(model)
+```
+
+Seemingly, HDD16 and CDD20 regressors are significant and residual standard error decreases with the usage of them. There is no obvious difference in residual analysis. Model becomes more accurate, but there is still need for other regressors in order to get close to the assumptions.
+  
+As an improvement, industrial production index value is proposed next. If the residual plot is analyzed, it can be said that there is an overall drop on consumption at March-April 2020 which coincides with the emergence of COVID-19 pandemic. This values are probably due to low production volumes at shutdown conditions. Therefore, adding the industrial production index as an indicator of the electricity consumption with industrial production purposes may explain this overall decrease and maybe other fluctuations.
+  
+The data will be used is obtained from EVDS and it is on monthly basis. For the sake of the compliance, monthly values are reproduced in a daily manner with duplicated values in months. Following is the model with industrial production index added:
+
+```{r Approach 4}
+# Reading industrial production index data from file
+prod <- read_excel("production.xlsx")
+
+# Adding industrial production index column to daily_data
+daily_data[, prod_index:= prod$production[1:1468]]
+
+# Fourth linear regression model
+model <- lm(formula = mean_consumption~ -1 + as.factor(day_type) + as.factor(month) +
+              lag_1 +
+              HDD16 + CDD20 +
+              prod_index,
+            data = daily_data)
+summary(model)
+checkresiduals(model)
+```
+
+Since production index has a very low p-value, it is significant in the model. Residual standard error is also lower than the previous model's error. Luckily, residuals analysis also gives better results in terms of assumptions. Residuals get closer to normal distribution, and some parts of the changing mean is explained with the help of industrial production index.
+  
+At this point, it might be helpful to check the outliers. When outliers are examined using 0.05 quantiles at both ends, it is realized that some days that are close to holidays are generally overestimated. For example, people generally take vacation on friday when an holiday coincides with thursday. Since the reason behind this outliers are known and there is no such days in the prediction period, they can be specified with two dummy variables, one for .05 and one for .95 quantiles, and model can be enhanced with this approach.
+  
+Following is the model with abovesaid dummy variables added:
+
+```{r Approach 5}
+# Detecting lower and upper 5% residuals and marking them as outlier_small and outlier_great
+daily_data$residual[2:1468] <- model$residual
+daily_data[!is.na(residual), quant5:=quantile(residual, 0.05)]
+daily_data[!is.na(residual), quant95:=quantile(residual, 0.95)]
+daily_data[,outlier_small:= as.numeric(residual < quant5)]
+daily_data[,outlier_great:= as.numeric(residual > quant95)]
+
+# Fifth linear regression model
+model <- lm(formula = mean_consumption~ -1 + as.factor(day_type) + as.factor(month) +
+              lag_1 +
+              HDD16 + CDD20 +
+              prod_index +
+              outlier_small + outlier_great,
+            data = daily_data)
+summary(model)
+checkresiduals(model)
+```
+
+As seen from the summary of the model, residual standard error decreases. More importantly, latest model's residuals show the requested behaviour in most aspects. To be more precise, residuals seem more stationary than ever, and they fit to the normal distribution pretty well. For autocorrelation, possible enhancements will be discussed at next sections.
+
+The last topic that will be discussed in this section is the transformation of the daily predictions to hourly ones. In this study, an easy but powerful method is used: Most recent same-type day, which is generally one week before, is used to find ratios of (hourly consumption)/(daily consumption mean). These ratios then used to calculate hourly predictions after daily mean consumption forecasting.
+
+# Results
+
+As discussed above, the final model includes outlier points, lag-1, HDD-16, CDD-20, production index and day and month types. The summary of the final model and plotted fitted values and actual values are below.
+
+```{r Summary of the Final Model and Its Plots}
+summary(model)
+
+daily_data[,fitted := NA]
+daily_data$fitted[2:1468] <- fitted(model)
+cols <- c("fitted" = "orange", "actual" = "blue")
+ggplot() + 
+  geom_line(data = daily_data, aes(x = Date, y = fitted,color = "fitted")) +
+  geom_line(data = daily_data, aes(x = Date, y = mean_consumption,color = "actual")) +
+  labs(title = "Predicted vs. Actual Daily Electricity Consumption (MWh) in  Turkey",
+    subtitle = "1 Jan 2017- 7 Jan 2021",
+    x = "Time",
+    y = "Electricity Consumption Rate (MWh)",
+    color = "Color") +
+  scale_color_manual(values = cols) +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b %Y", date_minor_breaks = "3 month") +
+  theme_minimal()
+
+statistics <- function(actual, forecasted){
+  n=length(actual)
+  error = actual - forecasted
+  mean = mean(actual)
+  sd = sd(actual)
+  bias = sum(error) / sum(actual)
+  mad = sum(abs(error)) / n
+  wmape = mad / mean
+  l = data.frame(n, mean, sd, bias, mad, wmape)
+  colnames(l) <- c("N", "Mean", "Standard Deviation", "Bias", "MAD", "WMAPE")
+  return(l)
+}
+
+daily_data[, base_fitted := fitted(model_base)]
+```
+
+```{r Base Model Daily Statistics}
+kable(statistics(daily_data$mean_consumption[-1], daily_data$base_fitted[-1]),
+      caption = "Statistics for Fitted Daily Mean Consumption According to Base Model", align = 'c')
+```
+
+```{r Final Model Daily Statistics}
+kable(statistics(daily_data$mean_consumption[-1], daily_data$fitted[-1]),
+      caption = "Statistics for Fitted Daily Mean Consumption According to Final Model", align = 'c')
+```
+
+Along with the model, all of the regressors are significant. Even though month 7 and 2 have large p-values, they won't be disposed, since they represent the monthly seasonality. Another important indicator of a regression model is residual standard error. This final model has the lowest residual standard error.
+
+From the plotted fitted values, the model seems to perform very well in explaining of the available data. Fitted and actual data have a very close pattern. The deviations are very rare. It can be inferred from the statistics that the model has improved by the addition of the new regressors, when compared with the base (first) model. WMAPE (weighted mean absolute percentage error) has decreased significantly.
+
+Let's see how well the model performed when forecasting the day ahead consumption values:
+
+```{r Results 4}
+test_data <- read_excel("test_data.xlsx")
+hours <- c(0:23)
+test_data$Hour <- rep(hours, times = 15)
+test_data <- as.data.table(test_data)
+daily_test_data <- test_data[,list(mean_actual=mean(Actual, na.rm = T),
+                                    mean_predictions=mean(Predictions, na.rm = T)),by=list(Date)]
+
+cols <- c("predicted" = "orange", "actual" = "blue")
+ggplot() + 
+  geom_line(data = daily_test_data, aes(x = Date, y = mean_predictions,color = "predicted")) +
+  geom_line(data = daily_test_data, aes(x = Date, y = mean_actual,color = "actual")) +
+  labs(title = "Predicted vs. Actual Daily Electricity Consumption (MWh) in  Turkey",
+    subtitle = "30 Jan 2021 - 13 Feb 2021",
+    x = "Time",
+    y = "Electricity Consumption Rate (MWh)",
+    color = "Color") +
+  scale_color_manual(values = cols) +
+  scale_x_datetime(date_breaks = "2 days", date_labels = "%d %b", date_minor_breaks = "1 day") +
+  theme_minimal()
+```
+
+```{r Statistics 3}
+kable(statistics(daily_test_data$mean_actual, daily_test_data$mean_predictions),
+      caption = "Statistics for Predicted Day Ahead Daily Mean Consumption", align = 'c')
+```
+
+As it can be seen from the daily predictions plot, the model performed quite well. There are no large deviations from the actual consumption values. Also WMAPE is quite small, indicating that the predictions are made by small errors. 
+
+Let's see if the transformation of daily mean predictions into hourly levels are also satisfactory. The hourly predictions of the data was collected every day. The test data and the plot of actual and predicted hourly electricity consumption and related statistics are below.
+
+```{r Final Hourly Predictions}
+test_data[,Date := as.POSIXct(Date) + Hour * 60 * 60,]
+rmarkdown::paged_table(test_data[,-2])
+cols <- c("predicted" = "orange", "actual" = "blue")
+
+ggplot() + 
+  geom_line(data = test_data, aes(x = Date, y = Predictions, color = "predicted")) +
+  geom_line(data = test_data, aes(x = Date, y = Actual, color = "actual")) +
+  labs(title = "Predicted vs. Actual Hourly Electricity Consumption (MWh) in  Turkey",
+       subtitle = "30 Jan 2021 00:00 - 13 Feb 2021 23:00",
+       x = "Time",
+       y = "Electricity Consumption Rate (MWh)",
+       color = "Color") +
+  scale_color_manual(values = cols) +
+  scale_x_datetime(date_breaks = "2 days", date_labels = "%d %b", date_minor_breaks = "1 day") +
+  theme_minimal()
+
+kable(statistics(test_data$Actual, test_data$Predictions),
+      caption = "Statistics for Predicted Day Ahead Hourly Mean Consumption", align = 'c')
+```
+
+It can be seen that the transformations made the predictions a bit more problematic. However, the predicted values are still good enough with 1.8% WMAPE.
+
+# Conclusion and Future Work
+
+Even though the final model has a very low WMAPE, further improvements and extensions can be made in the model to have a better approach.
+
+First, when the daily forecasts are transformed back to hourly data, the hourly distribution of the electricity consumption of the one week before is used. Choosing the best strategy to transform the daily data into an hourly one is a topic that is too complicated to discuss in this scope. Nevertheless, the method used in this model is a decent method to forecast the hourly electricity consumption rate in Turkey between 30 January 2021 to 13 February 2021, because luckily there was no religious/national holiday in this interval. If the interval included holidays or eves, this method would be problematic and not give satisfactory results. Because of this, a better back transformation method should be chosen for the future forecasts.
+
+Next, it was realized that a considerable amount of the outliers were from the dates very close to holidays/eves. In  Turkey, sometimes national/religious holidays are combined with weekends when there are only 1-2 week days in between. Because of this, those week days also become holidays and electricity consumption drops significantly. In this model, those types of days are not considered. For future work, those days should be detected and their corresponding day types should be fixed.
+
+Moreover, outliers contained so many New Year's Eve's (December 31). In Turkey, New Year's Eve is not a real "eve", it is not an official holiday. Therefore, New Year's Eve's are not marked as an "eve" in the `day_type` regressor in the final model. We could have been less strict when deciding on whether a day is an eve or not.
+
+Furthermore, the industrial production index data could be included in the model in a different way. The industrial production index data obtained from EVDS is monthly. The data is transformed to daily data by replicating the monthly value for all days of that month. This is rather a primitive method and a much more better method of transformation can be developed.
+
+Last but not least, in this model, the weighted average of the temperature values of the seven different coordinates are calculated for every day. Thus, only the mean temperature value is used when calculating HDD and CDD values. Instead of this, the temperature values of the seven coordinates could have been used separately. This may reduce the residual standard error of the final model.
+
+All things considered, the final multiple linear regression model built to forecast electricity consumption rates in Turkey for one day ahead is an acceptable model that explains the consumption rates in a satisfactory level.
+
+# Appendicies
+
+* The R Markdown of this report is [here][rmd]. (.Rmd file)
+* The R script used for retrieving data from API and making submissions is [here][script]. (.R file)
+* The data (.csv and .xlsx files) used in these files are [here][data]. (.zip file)
+
+# References
+<!-- References will be inserted here automatically. -->
+
+<!-- Links -->
+[EPDK]: https://www.epdk.gov.tr/Anasayfa/Anasayfa "Website of Republic of Turkey Energy Market Regulatory Authority"
+[study]: https://www.researchgate.net/publication/321155122_isinma_ve_soguma_derece_gunlerin_elektrik_tuketimi1 "Isınma ve Soğuma Derece Günlerin Elektrik Tüketimi Üzerindeki Etkisi"
+[rmd]: https://bu-ie-360.github.io/fall20-ferhatturhan/files/R-scripts/IE360_group12_project_report.Rmd "R Markdown of this report"
+[script]: https://bu-ie-360.github.io/fall20-ferhatturhan/files/R-scripts/IE360_group12_project.R "The R script used for retrieving data from API and making submissions"
+[data]: https://bu-ie-360.github.io/fall20-ferhatturhan/files/IE360_group12_project_data.zip "The data (.csv and .xlsx files) used in these files"
