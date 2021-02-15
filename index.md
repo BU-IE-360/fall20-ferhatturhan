@@ -24,7 +24,7 @@
 
 ## Group Project (15.02.2021)
 
-[Here](files/ferhatturhan_homework_4.html) is our group project on forecasting the hourly electricity consumption.
+[Here](files/IE360_group12_project_report.html) is our group project on forecasting the hourly electricity consumption.
 
 -----------------------------------------------------------------------------------------------------------
 
