@@ -20,6 +20,10 @@
 
 [Here](files/ferhatturhan_homework_4.html) is the transformation of the time series Daily Electricity Consumption data into stationary time series data.
 
+## Homework 5 (16.02.2021)
+
+[Here](files/ferhatturhan_homework_5.html) is an example of stepwise regression model on forecasting if a candidate will be a good salesperson or not.
+
 -----------------------------------------------------------------------------------------------------------
 
 ## Group Project (15.02.2021)
@@ -28,6 +32,6 @@
 
 -----------------------------------------------------------------------------------------------------------
 
-## Final Exam (06.01.2021)
+## Final Exam (06.02.2021)
 
 [Here](files/final.html) is my final exam, which consists of forecasting the solar production energy by using different approaches.

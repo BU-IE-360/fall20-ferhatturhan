@@ -1,0 +1,207 @@
+---
+title: "Homework 5"
+author: "Ferhat Turhan"
+date: "16 02 2021"
+output: html_document
+---
+
+## Introduction
+
+In this homework, it is expected to forecast if an applicant will be a good salesperson or not based on his/her following attributes: 
+
+APT: Selling aptitude test score
+AGE: Age (in years)
+ANX: Anxiety test score
+EXP: Experience (in years)
+GPA: High school GPA
+
+Relevant data is given, which can be found [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/sales.txt). The head of the data:
+
+```{r libraries, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(ggcorrplot)
+library(GGally)
+library(knitr)
+
+data <- read.csv("C:/Users/user/Desktop/sales.txt", sep="")
+
+head(data)
+
+```
+
+In this homework it is expected to implement a stepwise regreession approach, and based on the final model, perform a test if GPA is an effective variable on explaining sales value. "Stepwise regression is the step-by-step iterative construction of a regression model that involves the selection of independent variables to be used in a final model. It involves adding or removing potential explanatory variables in succession and testing for statistical significance after each iteration."
+
+Let's start analyzing with correlation coefficients and scatter plots between variables.
+
+## Analysis
+
+```{r correlations, echo=FALSE, message=FALSE, warning=FALSE}
+
+par(mfrow=c(1,3))
+plot(data$SALES, data$APT, main = "SALES vs APT", xlab = "SALES", ylab = "APT")
+plot(data$SALES, data$AGE, main = "SALES vs AGE", xlab = "SALES", ylab = "APT")
+plot(data$SALES, data$ANX, main = "SALES vs ANX", xlab = "SALES", ylab = "APT")
+plot(data$SALES, data$EXP, main = "SALES vs EXP", xlab = "SALES", ylab = "APT")
+plot(data$SALES, data$GPA, main = "SALES vs GPA", xlab = "SALES", ylab = "APT")
+#ggpairs(data, title = "abc") I could also use this but this visualization has information more than necessary.
+ggcorrplot(corr = cor(data),
+           type = "upper",lab = TRUE,
+           title = "Correlation Matrix",
+           legend.title = "Correlation"
+          )
+
+```
+
+This visualization tells a brief story on which variables might be related to the Sales variable most. Correlation coefficients indicate that selling aptitude test score (APT), GPA and AGE are seem to have a strong positive relation with Sales. Also the scatter plots respective to those variables support that they have a positive (somewhat linear) relationship. Anxiety test score is the only variable having a negative correlation coefficient. This is also demonstrated by negative (somewhat linear) relationship in the corresponding scatter plot. Variable EXP, doesn't seem to have a clear relationship with Sales. From these correlation coefficients it is expected to have APT, AGE and GPA variables in the final model.
+
+From coefficients above, it is meaningful to start the very first model using AGE, since this variable has the higher correlation with Sales.
+
+```{r first model, echo=FALSE, message=FALSE, warning=FALSE}
+
+current1 <- lm(SALES~AGE,data = data)
+summary(current1)
+```
+
+Now, all of the other variables will be added one by one into the model and selected the best one among them. 
+
+```{r adding second variable, echo=FALSE, message=FALSE, warning=FALSE}
+
+newa <- lm(SALES~AGE+APT,data = data)
+summary(newa)
+
+newb <- lm(SALES~AGE+ANX,data = data)
+summary(newb)
+
+newc <- lm(SALES~AGE+EXP,data = data)
+summary(newc)
+
+newd <- lm(SALES~AGE+GPA,data = data)
+summary(newd)
+
+```
+
+From the summaries of the potential variables that could be added, it can be said that residual standard error drops almost by half in model a, which corresponds to adding the variable APT. I can say that APT should be added since other possible models don't seem to suggest a better model in terms of both residual standard error and adjusted R-squared values. Plus, they don't seem to be statistically significant variables. Before moving on, let's see ANOVA tables of all of the possible new models.
+
+```{r second adding anova, echo=FALSE, message=FALSE, warning=FALSE}
+
+anova(current1, newa)
+anova(current1, newb)
+anova(current1, newc)
+anova(current1, newd)
+
+```
+
+F-statistics of the ANOVA tables supports the conclusions before. The only variable that has the significant p-values is APT. Therefore, APT will be added to the current model as next step. Now that we added the new variable, let's see if removing the past variables that were already in the model makes sense. 
+
+```{r second model, echo=FALSE, message=FALSE, warning=FALSE}
+
+current2 <- lm(SALES~AGE+APT,data = data)
+summary(current2)
+reduceda <- lm(SALES~APT,data = data)
+summary(reduceda)
+
+```
+
+From the summary tables, both residual standard error, and adjusted R-squared values got worse, when removal of the previous variable is done. Hence, it isn't very meaningful to remove AGE variable. To be more confident about this decision, let's see the ANOVA table.
+
+```{r anova for removal, echo=FALSE, message=FALSE, warning=FALSE}
+
+anova(current2, reduceda)
+
+```
+
+Here p-value is very significant which means that removing the previous variable doesn't make sense at all as expected from the summary tables. Now let's see if a third variable can be added to our model.
+
+```{r adding third variable, echo=FALSE, message=FALSE, warning=FALSE}
+
+new1 <- lm(SALES~AGE+APT+ANX,data = data)
+summary(new1)
+
+new2 <- lm(SALES~AGE+APT+EXP,data = data)
+summary(new2)
+
+new3 <- lm(SALES~AGE+APT+GPA,data = data)
+summary(new3)
+
+```
+
+From the summary tables above it seems that no new variables has a significant effect on explaining the Sales data. I don't think that adding a new variable is meaningful. Let's see what ANOVA suggests:
+
+```{r third adding anova, echo=FALSE, message=FALSE, warning=FALSE}
+
+anova(current2, new1)
+anova(current2, new2)
+anova(current2, new3)
+
+```
+
+From ANOVA tables, p-values are very high, which means that we shouldn't add any new variables to the model. So the final model includes AGE and APT (Selling Aptitude Test Score) as regressors. Now, I will use the step() function to perform an appropriate type of stepwise regression.
+
+## Using step() Funciton
+
+```{r step function, echo=TRUE, message=FALSE, warning=FALSE}
+
+step(lm(SALES~APT+AGE+ANX+EXP+GPA,data = data), direction = "both")
+
+```
+
+Step function's output suggests the same model as the final model obtained above. This means that steps of a stepwise regression model manually performed correctly. 
+
+## Results
+
+As a result, from the given data APT and AGE variables are the only variables that is going to be used for forecasting if a candidate will be a good salesperson or not. Below is the summary table of the final model. 
+
+```{r final summary, echo=FALSE, message=FALSE, warning=FALSE}
+
+summary(current2)
+
+```
+
+From this summary, as we discussed before, residual standard error is the lowest. Also Adjusted R-Squared values is adequate enough for this work due to limited data that is given. Besides these two, all variables are statistically significant, meaning that they have significant effect on Sales. Below is the estimates of the intercept and the coefficients and residual variance.
+
+```{r coefficients and residual variance, echo=FALSE, message=FALSE, warning=FALSE}
+
+kable(coefficients(current2),
+      caption = "Estimates of the Intercept and the Coefficients of the Final Model", align = 'c',
+      col.names = "Estimates")
+
+Var <- sd(current2$residuals)^2
+cat("Residual Variance:", Var)
+
+```
+
+## Testing if GPA has an Influence on Sales
+
+The effect of GPA on Sales can be tested by adding it into the final model obtained above. Actually, GPA wasn't added into model before. The reason behind this is the fact that it was not significant enough to explain Sales variable. Here the reasoning will be more open. In a summary table of a linear regression model, every independent variable (regressor) has a corresponding p-value. The null and the alternative hypothesis beneath those p-values are as follows:
+
+```{r hypothesis, echo=FALSE, message=FALSE, warning=FALSE}
+
+print("Null Hypothesis, H0: ß = 0, where ß is the coefficient of the corresponding regressor")
+print("Alternative Hypothesis, H1: ß ≠ 0, where ß is the coefficient of the corresponding regressor")
+
+```
+
+Here GPA will be added to the final model and the corresponding p-value will be interpreted.
+
+```{r model with gpa, echo=FALSE, message=FALSE, warning=FALSE}
+
+model <- lm(SALES~AGE+APT+GPA,data = data)
+summary(model)
+
+```
+
+In this summary table, p-value of the GPA regressor is **0.661**. At α = 0.1 level, p-value is greater than α. This means that the null hypothesis that _the coefficient of GPA equals to 0_ meaning that GPA doesn't have an influence on Sales **cannot be rejected**. 
+
+The conclusion is the fact that GPA has no significant effect on Sales at α = 0.1 level. 
+
+## Conclusion
+
+In this study, I tried to perform a stepwise regression model. After doing it by hand, final model is compared to the suggested model by step() function. Both models were the same and this applies that Stepwise regression model is created correctly.
+
+In the first place, coefficient matrix mislead us in the fact that GPA has also a great correlation with Sales. I thought that GPA would also be in the final model as another regressor, however it didn't turn out as expected. In the final step of this study, the effect of GPA is tested and the conclusion didn't change: **GPA has no effect on Sales variable cannot be rejected.**
+
+## References
+
+[Stepwise Regression](https://www.investopedia.com/terms/s/stepwise-regression.asp#:~:text=Stepwise%20regression%20is%20the%20step,statistical%20significance%20after%20each%20iteration.)
+
+You can find the related R Markdown file and related R Codes [here](https://bu-ie-360.github.io/fall20-ferhatturhan/files/hw5.Rmd)
