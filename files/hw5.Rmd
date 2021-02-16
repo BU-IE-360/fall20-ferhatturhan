@@ -36,13 +36,18 @@ Let's start analyzing with correlation coefficients and scatter plots between va
 ## Analysis
 
 ```{r correlations, echo=FALSE, message=FALSE, warning=FALSE}
-
 par(mfrow=c(1,3))
 plot(data$SALES, data$APT, main = "SALES vs APT", xlab = "SALES", ylab = "APT")
-plot(data$SALES, data$AGE, main = "SALES vs AGE", xlab = "SALES", ylab = "APT")
-plot(data$SALES, data$ANX, main = "SALES vs ANX", xlab = "SALES", ylab = "APT")
-plot(data$SALES, data$EXP, main = "SALES vs EXP", xlab = "SALES", ylab = "APT")
-plot(data$SALES, data$GPA, main = "SALES vs GPA", xlab = "SALES", ylab = "APT")
+plot(data$SALES, data$AGE, main = "SALES vs AGE", xlab = "SALES", ylab = "AGE")
+plot(data$SALES, data$ANX, main = "SALES vs ANX", xlab = "SALES", ylab = "ANX")
+
+```
+
+```{r correlations2, echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(1,2))
+plot(data$SALES, data$EXP, main = "SALES vs EXP", xlab = "SALES", ylab = "EXP")
+plot(data$SALES, data$GPA, main = "SALES vs GPA", xlab = "SALES", ylab = "GPA")
+
 #ggpairs(data, title = "abc") I could also use this but this visualization has information more than necessary.
 ggcorrplot(corr = cor(data),
            type = "upper",lab = TRUE,
@@ -91,7 +96,7 @@ anova(current1, newd)
 
 ```
 
-F-statistics of the ANOVA tables supports the conclusions before. The only variable that has the significant p-values is APT. Therefore, APT will be added to the current model as next step. Now that we added the new variable, let's see if removing the past variables that were already in the model makes sense. 
+F-statistics of the ANOVA tables supports the conclusions before. The only variable that has the significant p-value is APT. Therefore, APT will be added to the current model as next step. Now that we added the new variable, let's see if removing the past variables that were already in the model makes sense. 
 
 ```{r second model, echo=FALSE, message=FALSE, warning=FALSE}
 
